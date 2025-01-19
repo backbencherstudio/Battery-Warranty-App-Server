@@ -1,0 +1,79 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           Int            @id @default(autoincrement())
+  name         String
+  email        String         @unique
+  password     String
+  role         Role
+  googleLogin  Boolean        @default(false)
+  image        String?
+  batteries    Battery[]
+  warranties   Warranty[]
+  notification Notification[]
+}
+
+model ucode {
+  id         Int      @id @default(autoincrement())
+  email      String   @unique
+  name       String
+  otp        String
+  expired_at DateTime
+}
+
+model Battery {
+  id           Int        @id @default(autoincrement())
+  name         String
+  serialNumber String     @unique
+  image        String
+  purchaseDate DateTime
+  userId       Int
+  user         User       @relation(fields: [userId], references: [id])
+  warranties   Warranty[]
+}
+
+model Warranty {
+  id           Int            @id @default(autoincrement())
+  serialNumber String
+  image        String
+  batteryId    Int
+  battery      Battery        @relation(fields: [batteryId], references: [id])
+  userId       Int
+  user         User           @relation(fields: [userId], references: [id])
+  requestDate  DateTime       @default(now())
+  status       WarrantyStatus @default(PENDING)
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  message   String
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+  isRead    Boolean  @default(false)
+}
+
+// Enums for roles and warranty status
+enum Role {
+  USER
+  ADMIN
+}
+
+enum WarrantyStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
