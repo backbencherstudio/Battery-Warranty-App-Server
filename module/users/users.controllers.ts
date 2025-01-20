@@ -133,7 +133,19 @@ class UserController {
     const { email, password }: { email: string; password: string } = req.body;
 
     try {
-      const user = await prisma.user.findUnique({ where: { email } });
+      const user = await prisma.user.findUnique({ 
+        where: { email },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          password: true,
+          role: true,
+          image: true,
+          address: true,
+          googleLogin: true,
+        }
+      });
 
       // Validate credentials
       if (
@@ -151,10 +163,25 @@ class UserController {
         { expiresIn: "1h" }
       );
 
-      res.status(200).json({ success: true, token, user });
+      // Transform user data and exclude password
+      const transformedUser = {
+        ...user,
+        password: undefined, // Remove password from response
+        image: user.image ? getImageUrl(user.image) : null
+      };
+
+      res.status(200).json({ 
+        success: true, 
+        message: "Login successful",
+        token, 
+        user: transformedUser 
+      });
     } catch (error) {
       console.error("Error during login:", error);
-      res.status(500).json({ error: "Failed to login" });
+      res.status(500).json({ 
+        success: false,
+        error: "Failed to login" 
+      });
     }
   };
 
@@ -446,6 +473,178 @@ class UserController {
         message: "Failed to update profile.",
         error: (error as Error).message,
       });
+    }
+  };
+
+  static googleLogin = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { email, name, googleId } = req.body;
+
+      if (!email || !name || !googleId) {
+        res.status(400).json({ error: "Email, name and googleId are required" });
+        return;
+      }
+
+      // Find or create user
+      let user = await prisma.user.findUnique({ where: { email } });
+
+      if (!user) {
+        // Create new user if doesn't exist
+        user = await prisma.user.create({
+          data: {
+            email,
+            name,
+            googleLogin: true,
+            role: "USER",
+          },
+        });
+      } else if (!user.googleLogin) {
+        // If user exists but hasn't used Google login before
+        res.status(400).json({ 
+          error: "Email already registered with password. Please use password login." 
+        });
+        return;
+      }
+
+      // Generate JWT token
+      const token = jwt.sign(
+        { id: user.id, role: user.role },
+        process.env.JWT_SECRET as string,
+        { expiresIn: "1h" }
+      );
+
+      // Transform user data if needed
+      const transformedUser = {
+        ...user,
+        image: user.image ? getImageUrl(user.image) : null
+      };
+
+      res.status(200).json({
+        success: true,
+        message: "Google login successful",
+        user: transformedUser,
+        token,
+      });
+    } catch (error) {
+      console.error("Error in googleLogin:", error);
+      res.status(500).json({
+        message: "Failed to login with Google.",
+        error: (error as Error).message,
+      });
+    }
+  };
+
+  static googleSignIn = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { email, name, photoUrl, googleId } = req.body;
+
+      if (!email || !name || !googleId) {
+        res.status(400).json({ error: "Email, name and googleId are required" });
+        return;
+      }
+
+      // Find if user exists
+      let user = await prisma.user.findUnique({ where: { email } });
+
+      if (user) {
+        // If user exists but is not a Google user
+        if (!user.googleLogin) {
+          res.status(400).json({ 
+            error: "Email already registered. Please login with password." 
+          });
+          return;
+        }
+
+        // If Google user exists, generate token and return user
+        const token = jwt.sign(
+          { id: user.id, role: user.role },
+          process.env.JWT_SECRET as string,
+          { expiresIn: "1h" }
+        );
+
+        const transformedUser = {
+          ...user,
+          image: user.image ? getImageUrl(user.image) : null
+        };
+
+        res.status(200).json({
+          success: true,
+          message: "Google login successful",
+          user: transformedUser,
+          token,
+        });
+        return;
+      }
+
+      // If user doesn't exist, create new user with Google data
+      const newUser = await prisma.user.create({
+        data: {
+          email,
+          name,
+          googleLogin: true,
+          role: "USER",
+          image: photoUrl || null, // Save Google profile image if provided
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          image: true,
+          address: true,
+          googleLogin: true,
+        }
+      });
+
+      const token = jwt.sign(
+        { id: newUser.id, role: newUser.role },
+        process.env.JWT_SECRET as string,
+        { expiresIn: "1h" }
+      );
+
+      const transformedUser = {
+        ...newUser,
+        image: newUser.image ? getImageUrl(newUser.image) : null
+      };
+
+      res.status(201).json({
+        success: true,
+        message: "Google signup successful",
+        user: transformedUser,
+        token,
+      });
+
+    } catch (error) {
+      console.error("Error in googleSignIn:", error);
+      res.status(500).json({
+        message: "Failed to authenticate with Google.",
+        error: (error as Error).message,
+      });
+    }
+  };
+
+  static handleGoogleCallback = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const user = req.user as any;
+      
+      if (!user) {
+        res.redirect(process.env.CLIENT_URL + '/login?error=auth_failed');
+        return;
+      }
+
+      const token = jwt.sign(
+        { id: user.id, role: user.role },
+        process.env.JWT_SECRET as string,
+        { expiresIn: "1h" }
+      );
+
+      // Redirect to frontend with token
+      res.redirect(
+        `${process.env.CLIENT_URL}/auth/callback?token=${token}`
+      );
+    } catch (error) {
+      console.error("Error in handleGoogleCallback:", error);
+      res.redirect(process.env.CLIENT_URL + '/login?error=server_error');
     }
   };
 }

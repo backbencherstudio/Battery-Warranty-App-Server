@@ -1,9 +1,8 @@
 export const getImageUrl = (imagePath: string) => {
-  if (!imagePath) return null;
-  return `${process.env.APP_URL || 'http://localhost:3000'}${imagePath}`;
+  return `${process.env.APP_URL}${imagePath}`;
 };
 
-export const baseUrl = process.env.APP_URL || 'http://localhost:3000';
+export const baseUrl = process.env.APP_URL;
 
 // module.exports = { getImageUrl, baseUrl };
 
