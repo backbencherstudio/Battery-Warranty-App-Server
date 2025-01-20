@@ -3,7 +3,14 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import dotenv from "dotenv";
 import { Request, Response } from "express";
-import { generateOTP, sendRegistrationOTPEmail } from "../../util/otpUtils";
+import {
+  generateOTP,
+  sendForgotPasswordOTP,
+  sendRegistrationOTPEmail,
+} from "../../util/otpUtils";
+import path from "path";
+import fs from "fs";
+import { getImageUrl } from "../../util/image_path";
 dotenv.config();
 
 const prisma = new PrismaClient();
@@ -13,33 +20,37 @@ class UserController {
 
   static sendOtp = async (req: Request, res: Response): Promise<void> => {
     const { email, name } = req.body;
-  
+
     if (!email || !name) {
       res.status(400).json({ error: "Email and name are required" });
       return;
     }
-  
+
     try {
       const otp = generateOTP();
       const expiry = new Date(Date.now() + UserController.otpExpiryTime);
-  
+
       // Database operation to save or update OTP
       await prisma.ucode.upsert({
         where: { email },
         update: { otp, expired_at: expiry, name },
         create: { name, email, otp, expired_at: expiry },
       });
-  
+
       // Send email asynchronously without delaying response
       sendRegistrationOTPEmail(name, email, otp).catch((error) =>
         console.error("Failed to send email:", error)
       );
-  
+
       // Respond immediately after saving OTP
-      res.status(200).json({ message: "OTP sent successfully", email, name });
+      res
+        .status(200)
+        .json({ success: true, message: "OTP sent successfully", email, name });
     } catch (error) {
       console.error("Error in sendOtp:", error);
-      res.status(500).json({ error: "Failed to send OTP. Please try again later." });
+      res
+        .status(500)
+        .json({ error: "Failed to send OTP. Please try again later." });
     }
   };
 
@@ -64,7 +75,9 @@ class UserController {
         return;
       }
 
-      res.status(200).json({ message: "OTP verified successfully" });
+      res
+        .status(200)
+        .json({ success: true, message: "OTP verified successfully" });
     } catch (error) {
       console.error("Error in verifyOtp:", error);
       res.status(500).json({ error: "Failed to verify OTP" });
@@ -109,7 +122,6 @@ class UserController {
         { expiresIn: "1h" }
       );
 
-
       res.status(200).json({ success: true, user, token });
     } catch (error) {
       console.error("Error in register:", error);
@@ -124,7 +136,11 @@ class UserController {
       const user = await prisma.user.findUnique({ where: { email } });
 
       // Validate credentials
-      if (!user || !(await bcrypt.compare(password, user.password))) {
+      if (
+        !user ||
+        !user.password ||
+        !(await bcrypt.compare(password, user.password))
+      ) {
         res.status(401).json({ error: "Invalid email or password" });
         return;
       }
@@ -140,12 +156,298 @@ class UserController {
       console.error("Error during login:", error);
       res.status(500).json({ error: "Failed to login" });
     }
-  }; 
-      
-    
+  };
 
+  static getSingleUser = async (req: Request, res: Response): Promise<void> => {
+    const { id } = req.params;
 
+    try {
+      const user = await prisma.user.findUnique({ where: { id: Number(id) } });
 
+      if (!user) {
+        res.status(404).json({ message: "User not found" });
+        return;
+      }
+
+      // Transform the image URL
+      const transformedUser = {
+        ...user,
+        image: user.image ? getImageUrl(user.image) : null
+      };
+
+      res.status(200).json(transformedUser);
+    } catch (error) {
+      res.status(500).json({ error: (error as Error).message });
+    }
+  };
+
+  static getAllUsers = async (_req: Request, res: Response): Promise<void> => {
+    try {
+      const users = await prisma.user.findMany({
+        orderBy: { id: "desc" },
+      });
+
+      // Transform all users' image URLs
+      const transformedUsers = users.map(user => ({
+        ...user,
+        image: user.image ? getImageUrl(user.image) : null
+      }));
+
+      res.status(200).json(transformedUsers);
+    } catch (error) {
+      console.error("Error in getAllUsers:", error);
+      res.status(500).json({ error: "Failed to retrieve users" });
+    }
+  };
+
+  static forgotPasswordSendOtp = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    const { email } = req.body;
+
+    if (!email) {
+      res.status(400).json({ error: "Email is required" });
+      return;
+    }
+
+    try {
+      const user = await prisma.user.findUnique({ where: { email } });
+
+      if (!user) {
+        res.status(404).json({ error: "User not found" });
+        return;
+      }
+
+      const otp = generateOTP();
+      const expiry = new Date(Date.now() + UserController.otpExpiryTime);
+
+      await prisma.ucode.upsert({
+        where: { email },
+        update: { otp, expired_at: expiry, name: user.name },
+        create: { name: user.name, email, otp, expired_at: expiry },
+      });
+
+      sendForgotPasswordOTP(user.name, email, otp).catch((error) =>
+        console.error("Failed to send email:", error)
+      );
+
+      res.status(200).json({ success: true, message: "OTP sent successfully" });
+    } catch (error) {
+      console.error("Error in forgotPasswordSendOtp:", error);
+      res
+        .status(500)
+        .json({ error: "Failed to send OTP. Please try again later." });
+    }
+  };
+
+  static forgotPasswordVerifyOtp = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      res.status(400).json({ error: "Email and OTP are required" });
+      return;
+    }
+
+    try {
+      const ucode = await prisma.ucode.findUnique({ where: { email } });
+      console.log(ucode);
+      if (!ucode) {
+        res.status(400).json({ error: "Please request a new one." });
+        return;
+      }
+
+      if (new Date() > ucode.expired_at) {
+        res.status(400).json({ error: "Expired OTP" });
+        return;
+      }
+
+      if (ucode.otp !== otp) {
+        res.status(400).json({ error: "Invalid OTP" });
+        return;
+      }
+
+      res
+        .status(200)
+        .json({ success: true, message: "OTP verified successfully" });
+    } catch (error) {
+      console.error("Error in forgotPasswordVerifyOtp:", error);
+      res.status(500).json({ error: "Failed to verify OTP" });
+    }
+  };
+
+  static resetPassword = async (req: Request, res: Response): Promise<void> => {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      res.status(400).json({ error: "Email and new password are required" });
+      return;
+    }
+
+    try {
+      const ucode = await prisma.ucode.findUnique({ where: { email } });
+
+      if (!ucode) {
+        res.status(400).json({
+          error: "OTP verification required before resetting password",
+        });
+        return;
+      }
+
+      const hashedPassword = await bcrypt.hash(password, 8);
+
+      await prisma.user.update({
+        where: { email },
+        data: { password: hashedPassword },
+      });
+
+      await prisma.ucode.delete({ where: { email } });
+
+      res
+        .status(200)
+        .json({ success: true, message: "Password reset successfully" });
+    } catch (error) {
+      console.error("Error in resetPassword:", error);
+      res.status(500).json({ error: "Failed to reset password" });
+    }
+  };
+
+  static verify = async (req: Request, res: Response): Promise<void> => {
+    const authHeader = req.headers["authorization"];
+    if (!authHeader) {
+      res.status(401).json({ error: "No token provided" });
+      return;
+    }
+    console.log(authHeader);
+    const token = authHeader; //.split(" ")[1];
+
+    // if (!token) {
+    //   res.status(401).json({ error: "Malformed token" });
+    //   return;
+    // }
+
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as {
+        id: number;
+        role: string;
+      };
+
+      // 2. Check if the user still exists in the DB (optional, but recommended)
+      const user = await prisma.user.findUnique({
+        where: { id: decoded.id },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          address: true,
+          googleLogin: true,
+          image: true,
+        },
+      });
+
+      if (!user) {
+        res.status(404).json({ error: "User not found" });
+        return;
+      }
+
+      // Transform the image URL
+      const transformedUser = {
+        ...user,
+        image: user.image ? getImageUrl(user.image) : null
+      };
+
+      res.status(200).json({
+        success: true,
+        message: "Token is valid",
+        user: transformedUser,
+      });
+    } catch (error) {
+      res.status(401).json({
+        error: "Invalid or expired token",
+        message: (error as Error).message,
+      });
+    }
+  };
+
+  static editProfile = async (req: Request, res: Response): Promise<void> => {
+    try {
+      // Extract userId from token (verifyUser middleware sets req.user)
+      const userId = (req as any).user?.id;
+      if (!userId) {
+        res.status(401).json({ error: "Unauthorized" });
+        return;
+      }
+
+      // Get the current user to check for existing image
+      const currentUser = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { image: true }
+      });
+
+      let newImagePath = undefined;
+
+      // If multer found a file, handle the image update
+      if (req?.file) {
+        // Delete previous image if it exists
+        if (currentUser?.image) {
+          const oldImagePath = path.join(__dirname, '../../', currentUser.image);
+          try {
+            if (fs.existsSync(oldImagePath)) {
+              fs.unlinkSync(oldImagePath);
+            }
+          } catch (error) {
+            console.error('Error deleting old image:', error);
+          }
+        }
+
+        // Set new image path
+        newImagePath = `/uploads/${req.file.filename}`;
+      }
+
+      // Destructure AFTER setting the image
+      const { name, address } = req.body;
+
+      const updatedUser = await prisma.user.update({
+        where: { id: userId },
+        data: {
+          name,
+          image: newImagePath, // Only update image if new file was uploaded
+          address,
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          image: true,
+          address: true,
+          googleLogin: true,
+        },
+      });
+
+      // Transform the image URL in the response
+      const transformedUser = {
+        ...updatedUser,
+        image: updatedUser.image ? getImageUrl(updatedUser.image) : null
+      };
+
+      res.status(200).json({
+        success: true,
+        message: "Profile updated successfully",
+        user: transformedUser,
+      });
+    } catch (error) {
+      console.error("Error in editProfile:", error);
+      res.status(500).json({
+        message: "Failed to update profile.",
+        error: (error as Error).message,
+      });
+    }
+  };
 }
 
 export default UserController;

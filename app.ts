@@ -3,6 +3,7 @@ import cors from "cors";
 import morgan from "morgan";
 
 import users from "./module/users/users.routes";
+import path from "path";
 // import chat from "./routes/chat.routes";
 // import message from "./routes/message.routes";
 
@@ -18,6 +19,7 @@ app.use("/users", users);
 // app.use("/chat", chat);
 // app.use("/message", message);
 
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 app.use((req: Request, res: Response, next: NextFunction) => {
   res.status(404).json({

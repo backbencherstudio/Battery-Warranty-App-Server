@@ -9,11 +9,11 @@ CREATE TABLE "User" (
     "id" SERIAL NOT NULL,
     "name" TEXT NOT NULL,
     "email" TEXT NOT NULL,
-    "password" TEXT NOT NULL,
+    "password" TEXT,
+    "address" TEXT,
     "role" "Role" NOT NULL,
     "googleLogin" BOOLEAN NOT NULL DEFAULT false,
-    "otp" TEXT,
-    "otpExpiry" TIMESTAMP(3),
+    "image" TEXT,
 
     CONSTRAINT "User_pkey" PRIMARY KEY ("id")
 );

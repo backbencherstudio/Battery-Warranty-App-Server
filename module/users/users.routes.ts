@@ -2,20 +2,32 @@
 // Express.js routes
 import express, { Router } from "express";
 import UserController from "./users.controllers";
+import verifyuser from "../../middleware/verifyUser";
+import upload from "../../middleware/Multer.config";
 
 const router: Router = express.Router();
 
-router.post('/signup/send-otp', UserController.sendOtp);
-router.post('/signup/verify-otp', UserController.verifyOtp);
-router.post('/signup/register', UserController.register);
+router.post("/signup/send-otp", UserController.sendOtp);
+router.post("/signup/verify-otp", UserController.verifyOtp);
+router.post("/signup/register", UserController.register);
+
+// user get
+router.get("/get-one-users/:id", UserController.getSingleUser);
+router.get("/get-all-users", UserController.getAllUsers);
 
 // // Login
-router.post('/login', UserController.login);
+router.post("/login", UserController.login);
 // router.post('/login/google', userController.googleLogin);
 
-// // Forgot Password
-// router.post('/forgot-password/send-otp', userController.forgotPasswordSendOtp);
-// router.post('/forgot-password/verify-otp', userController.forgotPasswordVerifyOtp);
-// router.post('/forgot-password/reset', userController.resetPassword);
+// Forgot Password
+router.post('/forgot-password/send-otp', UserController.forgotPasswordSendOtp);
+router.post('/forgot-password/verify-otp', UserController.forgotPasswordVerifyOtp);
+router.post('/forgot-password/reset', UserController.resetPassword);
 
-export default router
+//check authentication
+router.get("/verify", UserController.verify);
+
+//edit user profile
+router.patch('/edit-profile', verifyuser, upload.single("image"), UserController.editProfile)
+
+export default router;

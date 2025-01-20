@@ -1,44 +1,37 @@
 import { Request, Response, NextFunction } from "express";
-import { verify } from "jsonwebtoken";
+import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
 
 dotenv.config();
 
-const JWT_SECRET = process.env.WEBTOKEN_SECRET_KEY;
-
-
-declare module "express" {
-
-  export interface Request {
-
-    userId?: string;
-
-    userRole?: string;
-
-  }
-
+interface AuthenticatedRequest extends Request {
+  user?: any;
 }
 
+const verifyUser = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  const authHeader = req.headers["authorization"];
 
-export const verifyUser = (req: Request, res: Response, next: NextFunction): void => {
-  // Extract token directly from headers
-  const token = req.headers.authorization;
+  if (!authHeader) {
+    res.status(401).json({ message: "No token provided" });
+    return; 
+  }
+  // Typically "Authorization: Bearer <token>"
+  // If you want to strictly parse "Bearer <token>", do:
+  // const token = authHeader.split(' ')[1];
+  const token = authHeader;
 
   if (!token) {
-    res.status(401).json({ message: "Unauthorized: Token not provided" });
+    res.status(401).json({ message: "Malformed token" });
     return;
   }
 
   try {
-    // Verify the token
-    const decodedToken = verify(token, JWT_SECRET as string) as { userId: string; role?: string };
-
-    req.userId = decodedToken.userId;
-    req.userRole = decodedToken.role || "USER"; // Default role if not present
-
+    const decoded = jwt.verify(token, process.env.JWT_SECRET as string);
+    req.user = decoded;
     next();
   } catch (error) {
-    console.error("JWT verification error:", error);
-    res.status(401).json({ message: "Unauthorized: Invalid or expired token" });
+    res.status(401).json({ message: "Invalid or expired token" });
   }
 };
+
+export default verifyUser;
