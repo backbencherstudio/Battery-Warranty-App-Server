@@ -6,7 +6,8 @@ import session from 'express-session';
 
 import users from "./module/users/users.routes";
 import path from "path";
-// import chat from "./routes/chat.routes";
+import battery from "./module/Battery/battery.routes";
+import warranty from "./module/warranty/warranty.routes";
 // import message from "./routes/message.routes";
 
 
@@ -37,8 +38,8 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 app.use("/users", users);
-// app.use("/chat", chat);
-// app.use("/message", message);
+app.use("/battery", battery)
+app.use("/warranty", warranty)
 
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 

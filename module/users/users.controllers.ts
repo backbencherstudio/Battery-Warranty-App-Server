@@ -16,7 +16,7 @@ dotenv.config();
 const prisma = new PrismaClient();
 
 class UserController {
-  private static otpExpiryTime: number = 5 * 60 * 1000;
+  private static otpExpiryTime: number = 5 * 60 * 1000; // 5 minutes in milliseconds
 
   static sendOtp = async (req: Request, res: Response): Promise<void> => {
     const { email, name } = req.body;
@@ -30,6 +30,13 @@ class UserController {
       const otp = generateOTP();
       const expiry = new Date(Date.now() + UserController.otpExpiryTime);
 
+      // Check if user already exists in the "user" schema
+      const existingUser = await prisma.user.findUnique({ where: { email } });
+
+      if (existingUser) {
+        res.status(400).json({ error: "User already exists. Please log in." });
+        return;
+      }
       // Database operation to save or update OTP
       await prisma.ucode.upsert({
         where: { email },
@@ -92,6 +99,11 @@ class UserController {
       return;
     }
 
+    if (password.length < 6) {
+      res.status(400).json({ error: "Password must be at least 6 characters" });
+      return;
+    }
+
     try {
       const ucode = await prisma.ucode.findUnique({ where: { email } });
 
@@ -119,7 +131,7 @@ class UserController {
       const token = jwt.sign(
         { id: user.id, role: user.role },
         process.env.JWT_SECRET as string,
-        { expiresIn: "1h" }
+        { expiresIn: "30d" }
       );
 
       res.status(200).json({ success: true, user, token });
@@ -133,19 +145,7 @@ class UserController {
     const { email, password }: { email: string; password: string } = req.body;
 
     try {
-      const user = await prisma.user.findUnique({ 
-        where: { email },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          password: true,
-          role: true,
-          image: true,
-          address: true,
-          googleLogin: true,
-        }
-      });
+      const user = await prisma.user.findUnique({ where: { email } });
 
       // Validate credentials
       if (
@@ -160,28 +160,19 @@ class UserController {
       const token = jwt.sign(
         { id: user.id, role: user.role },
         process.env.JWT_SECRET as string,
-        { expiresIn: "1h" }
+        { expiresIn: "30d" }
       );
 
-      // Transform user data and exclude password
+      // Transform the image URL
       const transformedUser = {
         ...user,
-        password: undefined, // Remove password from response
-        image: user.image ? getImageUrl(user.image) : null
+        image: user.image ? getImageUrl(user.image) : null,
       };
 
-      res.status(200).json({ 
-        success: true, 
-        message: "Login successful",
-        token, 
-        user: transformedUser 
-      });
+      res.status(200).json({ success: true, token, user: transformedUser });
     } catch (error) {
       console.error("Error during login:", error);
-      res.status(500).json({ 
-        success: false,
-        error: "Failed to login" 
-      });
+      res.status(500).json({ error: "Failed to login" });
     }
   };
 
@@ -199,7 +190,7 @@ class UserController {
       // Transform the image URL
       const transformedUser = {
         ...user,
-        image: user.image ? getImageUrl(user.image) : null
+        image: user.image ? getImageUrl(user.image) : null,
       };
 
       res.status(200).json(transformedUser);
@@ -215,9 +206,9 @@ class UserController {
       });
 
       // Transform all users' image URLs
-      const transformedUsers = users.map(user => ({
+      const transformedUsers = users.map((user) => ({
         ...user,
-        image: user.image ? getImageUrl(user.image) : null
+        image: user.image ? getImageUrl(user.image) : null,
       }));
 
       res.status(200).json(transformedUsers);
@@ -344,6 +335,7 @@ class UserController {
 
   static verify = async (req: Request, res: Response): Promise<void> => {
     const authHeader = req.headers["authorization"];
+    console.log(authHeader)
     if (!authHeader) {
       res.status(401).json({ error: "No token provided" });
       return;
@@ -369,6 +361,7 @@ class UserController {
           id: true,
           name: true,
           email: true,
+          password: true,
           role: true,
           address: true,
           googleLogin: true,
@@ -384,12 +377,13 @@ class UserController {
       // Transform the image URL
       const transformedUser = {
         ...user,
-        image: user.image ? getImageUrl(user.image) : null
+        image: user.image ? getImageUrl(user.image) : null,
       };
 
       res.status(200).json({
         success: true,
-        message: "Token is valid",
+        // message: "Token is valid",
+        token: authHeader,
         user: transformedUser,
       });
     } catch (error) {
@@ -412,7 +406,7 @@ class UserController {
       // Get the current user to check for existing image
       const currentUser = await prisma.user.findUnique({
         where: { id: userId },
-        select: { image: true }
+        select: { image: true },
       });
 
       let newImagePath = undefined;
@@ -421,13 +415,17 @@ class UserController {
       if (req?.file) {
         // Delete previous image if it exists
         if (currentUser?.image) {
-          const oldImagePath = path.join(__dirname, '../../', currentUser.image);
+          const oldImagePath = path.join(
+            __dirname,
+            "../../",
+            currentUser.image
+          );
           try {
             if (fs.existsSync(oldImagePath)) {
               fs.unlinkSync(oldImagePath);
             }
           } catch (error) {
-            console.error('Error deleting old image:', error);
+            console.error("Error deleting old image:", error);
           }
         }
 
@@ -459,7 +457,7 @@ class UserController {
       // Transform the image URL in the response
       const transformedUser = {
         ...updatedUser,
-        image: updatedUser.image ? getImageUrl(updatedUser.image) : null
+        image: updatedUser.image ? getImageUrl(updatedUser.image) : null,
       };
 
       res.status(200).json({
@@ -481,7 +479,9 @@ class UserController {
       const { email, name, googleId } = req.body;
 
       if (!email || !name || !googleId) {
-        res.status(400).json({ error: "Email, name and googleId are required" });
+        res
+          .status(400)
+          .json({ error: "Email, name and googleId are required" });
         return;
       }
 
@@ -500,8 +500,9 @@ class UserController {
         });
       } else if (!user.googleLogin) {
         // If user exists but hasn't used Google login before
-        res.status(400).json({ 
-          error: "Email already registered with password. Please use password login." 
+        res.status(400).json({
+          error:
+            "Email already registered with password. Please use password login.",
         });
         return;
       }
@@ -510,13 +511,13 @@ class UserController {
       const token = jwt.sign(
         { id: user.id, role: user.role },
         process.env.JWT_SECRET as string,
-        { expiresIn: "1h" }
+        { expiresIn: "30d" }
       );
 
       // Transform user data if needed
       const transformedUser = {
         ...user,
-        image: user.image ? getImageUrl(user.image) : null
+        image: user.image ? getImageUrl(user.image) : null,
       };
 
       res.status(200).json({
@@ -539,7 +540,9 @@ class UserController {
       const { email, name, photoUrl, googleId } = req.body;
 
       if (!email || !name || !googleId) {
-        res.status(400).json({ error: "Email, name and googleId are required" });
+        res
+          .status(400)
+          .json({ error: "Email, name and googleId are required" });
         return;
       }
 
@@ -549,8 +552,8 @@ class UserController {
       if (user) {
         // If user exists but is not a Google user
         if (!user.googleLogin) {
-          res.status(400).json({ 
-            error: "Email already registered. Please login with password." 
+          res.status(400).json({
+            error: "Email already registered. Please login with password.",
           });
           return;
         }
@@ -559,12 +562,12 @@ class UserController {
         const token = jwt.sign(
           { id: user.id, role: user.role },
           process.env.JWT_SECRET as string,
-          { expiresIn: "1h" }
+          { expiresIn: "30d" }
         );
 
         const transformedUser = {
           ...user,
-          image: user.image ? getImageUrl(user.image) : null
+          image: user.image ? getImageUrl(user.image) : null,
         };
 
         res.status(200).json({
@@ -593,18 +596,18 @@ class UserController {
           image: true,
           address: true,
           googleLogin: true,
-        }
+        },
       });
 
       const token = jwt.sign(
         { id: newUser.id, role: newUser.role },
         process.env.JWT_SECRET as string,
-        { expiresIn: "1h" }
+        { expiresIn: "30d" }
       );
 
       const transformedUser = {
         ...newUser,
-        image: newUser.image ? getImageUrl(newUser.image) : null
+        image: newUser.image ? getImageUrl(newUser.image) : null,
       };
 
       res.status(201).json({
@@ -613,7 +616,6 @@ class UserController {
         user: transformedUser,
         token,
       });
-
     } catch (error) {
       console.error("Error in googleSignIn:", error);
       res.status(500).json({
@@ -623,28 +625,29 @@ class UserController {
     }
   };
 
-  static handleGoogleCallback = async (req: Request, res: Response): Promise<void> => {
+  static handleGoogleCallback = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
     try {
       const user = req.user as any;
-      
+
       if (!user) {
-        res.redirect(process.env.CLIENT_URL + '/login?error=auth_failed');
+        res.redirect(process.env.CLIENT_URL + "/login?error=auth_failed");
         return;
       }
 
       const token = jwt.sign(
         { id: user.id, role: user.role },
         process.env.JWT_SECRET as string,
-        { expiresIn: "1h" }
+        { expiresIn: "30d" }
       );
 
       // Redirect to frontend with token
-      res.redirect(
-        `${process.env.CLIENT_URL}/auth/callback?token=${token}`
-      );
+      res.redirect(`${process.env.CLIENT_URL}/auth/callback?token=${token}`);
     } catch (error) {
       console.error("Error in handleGoogleCallback:", error);
-      res.redirect(process.env.CLIENT_URL + '/login?error=server_error');
+      res.redirect(process.env.CLIENT_URL + "/login?error=server_error");
     }
   };
 }

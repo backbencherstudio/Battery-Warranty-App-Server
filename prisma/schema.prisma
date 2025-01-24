@@ -36,13 +36,14 @@ model ucode {
 }
 
 model Battery {
-  id           Int        @id @default(autoincrement())
+  id           Int           @id @default(autoincrement())
   name         String
-  serialNumber String     @unique
+  serialNumber String        @unique
   image        String
   purchaseDate DateTime
   userId       Int
-  user         User       @relation(fields: [userId], references: [id])
+  user         User          @relation(fields: [userId], references: [id])
+  status       BatteryStatus @default(PENDING)
   warranties   Warranty[]
 }
 
@@ -56,6 +57,8 @@ model Warranty {
   user         User           @relation(fields: [userId], references: [id])
   requestDate  DateTime       @default(now())
   status       WarrantyStatus @default(PENDING)
+
+  @@unique([batteryId, userId])
 }
 
 model Notification {
@@ -74,6 +77,12 @@ enum Role {
 }
 
 enum WarrantyStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum BatteryStatus {
   PENDING
   APPROVED
   REJECTED
