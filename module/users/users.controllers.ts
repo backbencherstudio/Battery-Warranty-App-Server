@@ -650,6 +650,37 @@ class UserController {
       res.redirect(process.env.CLIENT_URL + "/login?error=server_error");
     }
   };
+
+  static updateFcmToken = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const userId = (req as any).user?.id;
+      const { fcmToken } = req.body;
+
+      if (!fcmToken) {
+        res.status(400).json({
+          success: false,
+          message: "FCM token is required"
+        });
+        return;
+      }
+
+      await prisma.user.update({
+        where: { id: userId },
+        data: { fcmToken }
+      });
+
+      res.status(200).json({
+        success: true,
+        message: "FCM token updated successfully"
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: "Failed to update FCM token",
+        error: (error as Error).message
+      });
+    }
+  };
 }
 
 export default UserController;

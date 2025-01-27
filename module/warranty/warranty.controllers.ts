@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { PrismaClient } from "@prisma/client";
 import { getImageUrl } from "../../util/image_path";
 import { calculateWarrantyLeft } from "../../util/warranty.utils";
+import { sendNotification, sendNotificationToAdmin } from '../../util/notification.utils';
 
 const prisma = new PrismaClient();
 
@@ -108,6 +109,16 @@ class WarrantyController {
           },
         },
       });
+
+      // Send notification to admin
+      await sendNotificationToAdmin(
+        'New Warranty Request',
+        `New warranty request received for battery ${warranty.serialNumber}`,
+        {
+          type: 'WARRANTY_REQUEST',
+          warrantyId: warranty.id.toString()
+        }
+      );
 
       const transformedWarranty = {
         ...warranty,
@@ -220,6 +231,17 @@ class WarrantyController {
             },
           },
         },
+      });
+
+      // Send notification to user
+      await sendNotification({
+        title: 'Warranty Request Approved',
+        body: `Your warranty request for battery ${warranty.serialNumber} has been approved`,
+        userId: warranty.userId,
+        data: {
+          type: 'WARRANTY_APPROVED',
+          warrantyId: warranty.id.toString()
+        }
       });
 
       const transformedWarranty = {

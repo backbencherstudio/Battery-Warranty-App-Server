@@ -8,7 +8,8 @@ import users from "./module/users/users.routes";
 import path from "path";
 import battery from "./module/Battery/battery.routes";
 import warranty from "./module/warranty/warranty.routes";
-// import message from "./routes/message.routes";
+import modelNumber from "./module/model-number/modelNumber.routes";
+import notificationRoutes from "./module/notification/notification.routes";
 
 
 const app = express();
@@ -19,6 +20,8 @@ app.use(
       "http://localhost:5173",
       "http://localhost:5174",
       "http://10.0.2.2:8081",
+      "http://localhost:*",
+      "http://localhost:58626",
       "http://192.168.40.47:3000",
       "http://192.168.40.47:*"
     ],
@@ -40,6 +43,8 @@ app.use(passport.session());
 app.use("/users", users);
 app.use("/battery", battery)
 app.use("/warranty", warranty)
+app.use("/model-number", modelNumber)
+app.use("/notification", notificationRoutes);
 
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 

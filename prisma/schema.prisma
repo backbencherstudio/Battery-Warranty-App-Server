@@ -22,6 +22,7 @@ model User {
   role         Role
   googleLogin  Boolean        @default(false)
   image        String?
+  fcmToken     String?
   batteries    Battery[]
   warranties   Warranty[]
   notification Notification[]
