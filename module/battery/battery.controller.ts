@@ -108,7 +108,7 @@ class BatteryController {
           },
         },
       });
-
+      console.log("added battery")
       // Send notification to user
       await sendNotification({
         title: 'Battery Registration Approved',

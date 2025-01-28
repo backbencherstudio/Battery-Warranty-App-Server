@@ -1,5 +1,5 @@
-import admin from '../config/firebase.config';
-import { PrismaClient } from '@prisma/client';
+import admin from "../config/firebase.config";
+import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
@@ -10,17 +10,21 @@ interface NotificationData {
   data?: Record<string, string>;
 }
 
-export const sendNotification = async ({ title, body, userId, data = {} }: NotificationData) => {
+export const sendNotification = async ({
+  title,
+  body,
+  userId,
+  data = {},
+}: NotificationData) => {
   try {
     // Get user's FCM token
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { fcmToken: true }
+      select: { fcmToken: true },
     });
 
     if (!user?.fcmToken) {
-      console.log('No FCM token found for user:', userId);
-      return;
+      return Error("No FCM token found for user");
     }
 
     // Save notification to database
@@ -28,7 +32,7 @@ export const sendNotification = async ({ title, body, userId, data = {} }: Notif
       data: {
         message: body,
         userId: userId,
-      }
+      },
     });
 
     // Send FCM notification
@@ -39,26 +43,29 @@ export const sendNotification = async ({ title, body, userId, data = {} }: Notif
       },
       data: {
         ...data,
-        click_action: 'FLUTTER_NOTIFICATION_CLICK',
+        click_action: "FLUTTER_NOTIFICATION_CLICK",
       },
       token: user.fcmToken,
     };
 
     const response = await admin.messaging().send(message);
-    console.log('Successfully sent notification:', response);
     return response;
   } catch (error) {
-    console.error('Error sending notification:', error);
+    console.error("Error sending notification:", error);
     throw error;
   }
 };
 
-export const sendNotificationToAdmin = async (title: string, body: string, data = {}) => {
+export const sendNotificationToAdmin = async (
+  title: string,
+  body: string,
+  data = {}
+) => {
   try {
     // Get all admin users
     const adminUsers = await prisma.user.findMany({
-      where: { role: 'ADMIN' },
-      select: { id: true, fcmToken: true }
+      where: { role: "ADMIN" },
+      select: { id: true, fcmToken: true },
     });
 
     // Send notification to each admin
@@ -68,14 +75,14 @@ export const sendNotificationToAdmin = async (title: string, body: string, data 
           title,
           body,
           userId: admin.id,
-          data
+          data,
         });
       }
     });
 
     await Promise.all(promises);
   } catch (error) {
-    console.error('Error sending admin notifications:', error);
+    console.error("Error sending admin notifications:", error);
     throw error;
   }
-}; 
+};

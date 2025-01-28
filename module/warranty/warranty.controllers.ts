@@ -48,11 +48,11 @@ class WarrantyController {
       const battery = await prisma.battery.findUnique({
         where: { serialNumber },
       });
-
+      console.log("battery",battery)
       const existingWarranty = await prisma.warranty.findFirst({
         where: { batteryId: battery?.id, userId },
       });
-
+      console.log("existingWarranty",existingWarranty)
       if (existingWarranty && existingWarranty.status !== "REJECTED") {
         res.status(400).json({
           success: false,
@@ -178,11 +178,15 @@ class WarrantyController {
           },
         },
       });
-      console.log(warranties);
 
       const transformedWarranties = warranties.map((warranty) => ({
         ...warranty,
         image: getImageUrl(warranty.image),
+        battery: {
+          ...warranty.battery,
+          image: getImageUrl(warranty.battery.image),
+          warranty_left: calculateWarrantyLeft(new Date(warranty.battery.purchaseDate))
+        },
         user: {
           ...warranty.user,
           image: warranty.user.image ? getImageUrl(warranty.user.image) : null,
@@ -203,11 +207,9 @@ class WarrantyController {
   };
 
   // Approve warranty request (Admin only)
-  static approveWarranty = async (
-    req: Request,
-    res: Response
-  ): Promise<void> => {
+  static approveWarranty = async (req: Request, res: Response): Promise<void> => {
     try {
+      // Check admin permission
       if ((req as any).user?.role !== "ADMIN") {
         res.status(403).json({
           success: false,
@@ -217,20 +219,16 @@ class WarrantyController {
       }
 
       const { id } = req.params;
+
+      // Update warranty status and get minimal required data
       const warranty = await prisma.warranty.update({
         where: { id: Number(id) },
         data: { status: "APPROVED" },
-        include: {
-          battery: true,
-          user: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              image: true,
-            },
-          },
-        },
+        select: {
+          id: true,
+          serialNumber: true,
+          userId: true,
+        }
       });
 
       // Send notification to user
@@ -244,25 +242,26 @@ class WarrantyController {
         }
       });
 
-      const transformedWarranty = {
-        ...warranty,
-        image: getImageUrl(warranty.image),
-        user: {
-          ...warranty.user,
-          image: warranty.user.image ? getImageUrl(warranty.user.image) : null,
-        },
-      };
-
       res.status(200).json({
         success: true,
         message: "Warranty request approved successfully",
-        warranty: transformedWarranty,
+        warrantyId: warranty.id
       });
-    } catch (error) {
+
+    } catch (error: unknown) {
+      // Handle specific Prisma errors
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'P2025') {
+        res.status(404).json({
+          success: false,
+          message: "Warranty not found"
+        });
+        return;
+      }
+
       res.status(500).json({
         success: false,
         message: "Failed to approve warranty request",
-        error: (error as Error).message,
+        error: (error as Error).message
       });
     }
   };
@@ -360,6 +359,54 @@ class WarrantyController {
       res.status(500).json({
         success: false,
         message: "Failed to fetch approved warranties",
+        error: (error as Error).message,
+      });
+    }
+  };
+
+  static getPendingWarranties = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const warranties = await prisma.warranty.findMany({
+        where: { status: "PENDING" },
+        orderBy: { id: "desc" },
+        include: {
+          battery: true,
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              image: true,
+            },
+          },
+        },
+      });
+
+      const transformedWarranties = warranties.map((warranty) => ({
+        ...warranty,
+        image: getImageUrl(warranty.image),
+        battery: {
+          ...warranty.battery,
+          image: getImageUrl(warranty.battery.image),
+          warranty_left: calculateWarrantyLeft(new Date(warranty.battery.purchaseDate))
+        },
+        user: {
+          ...warranty.user,
+          image: warranty.user.image ? getImageUrl(warranty.user.image) : null,
+        },
+      }));
+
+      res.status(200).json({
+        success: true,
+        warranties: transformedWarranties,
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: "Failed to fetch pending warranties",
         error: (error as Error).message,
       });
     }

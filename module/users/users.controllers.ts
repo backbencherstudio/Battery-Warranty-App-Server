@@ -11,6 +11,7 @@ import {
 import path from "path";
 import fs from "fs";
 import { getImageUrl } from "../../util/image_path";
+import { formatDate, calculateWarrantyLeft } from "../../util/dateUtils";
 dotenv.config();
 
 const prisma = new PrismaClient();
@@ -154,6 +155,46 @@ class UserController {
         !(await bcrypt.compare(password, user.password))
       ) {
         res.status(401).json({ error: "Invalid email or password" });
+        return;
+      }
+
+      const token = jwt.sign(
+        { id: user.id, role: user.role },
+        process.env.JWT_SECRET as string,
+        { expiresIn: "30d" }
+      );
+
+      // Transform the image URL
+      const transformedUser = {
+        ...user,
+        image: user.image ? getImageUrl(user.image) : null,
+      };
+
+      res.status(200).json({ success: true, token, user: transformedUser });
+    } catch (error) {
+      console.error("Error during login:", error);
+      res.status(500).json({ error: "Failed to login" });
+    }
+  };
+
+  static adminLogin = async (req: Request, res: Response): Promise<void> => {
+    const { email, password }: { email: string; password: string } = req.body;
+
+    try {
+      const user = await prisma.user.findUnique({ where: { email } });
+
+      // Validate credentials
+      if (
+        !user ||
+        !user.password ||
+        !(await bcrypt.compare(password, user.password))
+      ) {
+        res.status(401).json({ error: "Invalid email or password" });
+        return;
+      }
+
+      if (user.role !== "ADMIN") {
+        res.status(401).json({ error: "You are not an admin" });
         return;
       }
 
@@ -335,7 +376,7 @@ class UserController {
 
   static verify = async (req: Request, res: Response): Promise<void> => {
     const authHeader = req.headers["authorization"];
-    console.log(authHeader)
+    console.log(authHeader);
     if (!authHeader) {
       res.status(401).json({ error: "No token provided" });
       return;
@@ -442,6 +483,7 @@ class UserController {
           name,
           image: newImagePath, // Only update image if new file was uploaded
           address,
+          fcmToken: req.body.fcmToken || null,
         },
         select: {
           id: true,
@@ -651,7 +693,10 @@ class UserController {
     }
   };
 
-  static updateFcmToken = async (req: Request, res: Response): Promise<void> => {
+  static updateFcmToken = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
     try {
       const userId = (req as any).user?.id;
       const { fcmToken } = req.body;
@@ -659,24 +704,364 @@ class UserController {
       if (!fcmToken) {
         res.status(400).json({
           success: false,
-          message: "FCM token is required"
+          message: "FCM token is required",
         });
         return;
       }
 
       await prisma.user.update({
         where: { id: userId },
-        data: { fcmToken }
+        data: { fcmToken },
       });
 
       res.status(200).json({
         success: true,
-        message: "FCM token updated successfully"
+        message: "FCM token updated successfully",
       });
     } catch (error) {
       res.status(500).json({
         success: false,
         message: "Failed to update FCM token",
+        error: (error as Error).message,
+      });
+    }
+  };
+
+  static getUserProfile = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const userId = parseInt(req.params.id);
+
+      const userWithDetails = await prisma.user.findUnique({
+        where: { id: userId },
+        include: {
+          batteries: {
+            orderBy: [{ id: "desc" }],
+            include: {
+              warranties: true,
+            },
+          },
+        },
+      });
+
+      if (!userWithDetails) {
+        res.status(404).json({
+          success: false,
+          message: "User not found",
+        });
+        return;
+      }
+
+      // Transform the response
+      const transformedUser = {
+        ...userWithDetails,
+        image: userWithDetails.image
+          ? getImageUrl(userWithDetails.image)
+          : null,
+        password: undefined,
+        batteries: userWithDetails.batteries.map((battery: any) => ({
+          ...battery,
+          image: getImageUrl(battery.image),
+          purchaseDate: formatDate(new Date(battery.purchaseDate)),
+          warranty_left: calculateWarrantyLeft(new Date(battery.purchaseDate)),
+          warranties:
+            battery.warranties?.map((warranty: any) => ({
+              ...warranty,
+              image: getImageUrl(warranty.image),
+            })) || [],
+        })),
+      };
+
+      res.status(200).json({
+        success: true,
+        user: transformedUser,
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: "Failed to fetch user profile",
+        error: (error as Error).message,
+      });
+    }
+  };
+
+  // Get users with statistics
+  static getUsersWithStats = async (req: Request, res: Response): Promise<void> => {
+    try {
+      // Get all users with their batteries and warranties
+      const users = await prisma.user.findMany({
+        where: { role: "USER" },
+        include: {
+          batteries: {
+            select: {
+              id: true,
+              status: true,
+              name: true,
+              
+            },
+          },
+          warranties: {
+            orderBy: { id: 'desc' },
+            select: {
+              id: true,
+              status: true,
+              requestDate: true,
+              serialNumber: true,
+              batteryId: true,
+              image: true,
+            
+            },
+          },
+          _count: {
+            select: {
+              batteries: true,
+            },
+          },
+        },
+        orderBy: {
+          id: "desc",
+        },
+      });
+
+      // Get all warranties in descending order
+      const allWarranties = await prisma.warranty.findMany({
+        orderBy: { id: 'desc' },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            }
+          },
+          battery: {
+            select: {
+              name: true,
+              purchaseDate: true,
+              serialNumber: true
+            }
+          }
+        }
+      });
+
+      // Transform warranties with status
+      const transformedWarranties = allWarranties.map(warranty => {
+        const warrantyStatus = warranty.battery ? 
+          calculateWarrantyLeft(new Date(warranty.battery.purchaseDate)).day > 0 
+            ? "ACTIVE" 
+            : "EXPIRED"
+          : "UNKNOWN";
+
+        return {
+          id: warranty.id,
+          serialNumber: warranty.serialNumber,
+          batteryName: warranty.battery?.name,
+          status: warranty.status,
+          warrantyStatus,
+          requestDate: formatDate(new Date(warranty.requestDate)),
+          image: getImageUrl(warranty.image),
+          user: {
+            id: warranty.user.id,
+            name: warranty.user.name,
+            email: warranty.user.email
+          }
+        };
+      });
+
+      // Calculate statistics
+      const stats = {
+        activeUsers: users.length,
+        totalBatteries: users.reduce(
+          (acc, user) => acc + user.batteries.length,
+          0
+        ),
+        activeBatteries: users.reduce(
+          (acc, user) =>
+            acc +
+            user.batteries.filter((battery) => battery.status === "APPROVED")
+              .length,
+          0
+        ),
+        totalWarranties: transformedWarranties.length,
+        activeWarranties: transformedWarranties.filter(w => w.warrantyStatus === "ACTIVE").length,
+        expiredWarranties: transformedWarranties.filter(w => w.warrantyStatus === "EXPIRED").length
+      };
+
+      // Transform user data
+      const transformedUsers = users.map((user) => ({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        image: user.image ? getImageUrl(user.image) : null,
+        totalBatteries: user.batteries.length,
+        activeBatteries: user.batteries.filter(
+          (battery) => battery.status === "APPROVED"
+        ).length,
+        warranties: user.warranties.length
+      }));
+
+      res.status(200).json({
+        success: true,
+        statistics: stats,
+        users: transformedUsers,
+        warranties: transformedWarranties
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: "Failed to fetch users statistics",
+        error: (error as Error).message,
+      });
+    }
+  };
+
+  // Get user's complete profile with batteries and warranties
+  static getMyCompleteProfile = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const requestedUserId = parseInt(req.params.id);
+      const currentUserId = (req as any).user?.id;
+      const userRole = (req as any).user?.role;
+
+      // Check if user has permission to access this profile
+      if (requestedUserId !== currentUserId && userRole !== "ADMIN") {
+        res.status(403).json({
+          success: false,
+          message: "Access denied. You can only view your own profile or need admin rights."
+        });
+        return;
+      }
+
+      // Get all data in a single query with battery details for warranties
+      const userData = await prisma.user.findUnique({
+        where: { id: requestedUserId },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          image: true,
+          address: true,
+          role: true,
+          batteries: {
+            orderBy: { id: 'desc' },
+            select: {
+              id: true,
+              name: true,
+              serialNumber: true,
+              status: true,
+              image: true,
+              purchaseDate: true,
+            }
+          },
+          warranties: {
+            orderBy: { id: 'desc' },
+            select: {
+              id: true,
+              serialNumber: true,
+              status: true,
+              image: true,
+              requestDate: true,
+              batteryId: true,
+              battery: {
+                select: {
+                  id: true,
+                  name: true,
+                  serialNumber: true,
+                  purchaseDate: true,
+                  status: true
+                }
+              }
+            }
+          }
+        }
+      });
+
+      if (!userData) {
+        res.status(404).json({
+          success: false,
+          message: "User not found"
+        });
+        return;
+      }
+
+      // Transform the response
+      const transformedData = {
+        user: {
+          id: userData.id,
+          name: userData.name,
+          email: userData.email,
+          image: userData.image ? getImageUrl(userData.image) : null,
+          address: userData.address,
+          role: userData.role
+        },
+        batteries: userData.batteries.map(battery => ({
+          ...battery,
+          image: getImageUrl(battery.image),
+          purchaseDate: formatDate(new Date(battery.purchaseDate)),
+          warranty_left: calculateWarrantyLeft(new Date(battery.purchaseDate))
+        })),
+        warranties: userData.warranties.map(warranty => {
+          let warranty_left = null;
+          let warrantyStatus = "UNKNOWN";
+          
+          if (warranty.battery) {
+            const purchaseDate = new Date(warranty.battery.purchaseDate);
+            const currentDate = new Date();
+            const warrantyEndDate = new Date(purchaseDate);
+            warrantyEndDate.setFullYear(warrantyEndDate.getFullYear() + 1);
+            
+            if (currentDate <= warrantyEndDate) {
+              const diffTime = Math.abs(warrantyEndDate.getTime() - currentDate.getTime());
+              const totalDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+              
+              // Calculate total months and remaining days
+              const totalMonths = Math.floor(totalDays / 30);
+              const remainingDays = totalDays - (totalMonths * 30);
+              
+              warranty_left = {
+                month: totalMonths,
+                day: remainingDays,
+                percentage: Math.round((totalDays / 365) * 100)  // Round to nearest integer
+              };
+              warrantyStatus = "ACTIVE";
+            } else {
+              warranty_left = {
+                month: 0,
+                day: 0,
+                percentage: 0
+              };
+              warrantyStatus = "EXPIRED";
+            }
+          }
+
+          return {
+            id: warranty.id,
+            serialNumber: warranty.serialNumber,
+            status: warranty.status,
+            image: getImageUrl(warranty.image),
+            requestDate: formatDate(new Date(warranty.requestDate)),
+            batteryId: warranty.batteryId,
+            battery: warranty.battery ? {
+              id: warranty.battery.id,
+              name: warranty.battery.name,
+              serialNumber: warranty.battery.serialNumber,
+              status: warranty.battery.status,
+              warrantyStatus,
+              warranty_left
+            } : null
+          };
+        })
+      };
+
+      res.status(200).json({
+        success: true,
+        data: transformedData
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: "Failed to fetch complete profile",
         error: (error as Error).message
       });
     }

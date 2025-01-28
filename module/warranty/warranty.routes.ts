@@ -12,7 +12,9 @@ router.patch("/reject/:id", verifyuser, WarrantyController.rejectWarranty);
 
 // General routes
 router.post("/request", verifyuser, upload.single("image"), WarrantyController.requestWarranty);
+router.get("/get-pending", verifyuser, WarrantyController.getPendingWarranties);
 router.get("/approved", verifyuser, WarrantyController.getApprovedWarranties);
+
 router.get("/rejected", verifyuser, WarrantyController.getRejectedWarranties);
 
 // User specific routes

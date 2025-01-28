@@ -17,6 +17,7 @@ router.get("/get-all-users", UserController.getAllUsers);
 
 // Login routes
 router.post("/login", UserController.login);
+router.post("/admin/login", UserController.adminLogin);
 
 // Forgot Password
 router.post('/forgot-password/send-otp', UserController.forgotPasswordSendOtp);
@@ -34,5 +35,14 @@ router.post('/auth/google', UserController.googleSignIn);
 
 // Add this route
 router.post('/update-fcm-token', verifyuser, UserController.updateFcmToken);
+
+// Add this new route
+router.get("/profile/:id", verifyuser, UserController.getUserProfile);
+
+// Add this new route - place it with other admin routes
+router.get("/stats", verifyuser, UserController.getUsersWithStats);
+
+// Add this new route for complete profile
+router.get("/complete-profile/:id", verifyuser, UserController.getMyCompleteProfile);
 
 export default router;
