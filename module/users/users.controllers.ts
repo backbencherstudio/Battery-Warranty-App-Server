@@ -93,52 +93,44 @@ class UserController {
   };
 
   static register = async (req: Request, res: Response): Promise<void> => {
-    const { email, password } = req.body;
-
-    if (!email || !password) {
-      res.status(400).json({ error: "Email and password are required" });
-      return;
-    }
-
-    if (password.length < 6) {
-      res.status(400).json({ error: "Password must be at least 6 characters" });
-      return;
-    }
-
     try {
-      const ucode = await prisma.ucode.findUnique({ where: { email } });
+      const { name, email, password, phone } = req.body;
 
-      if (!ucode) {
-        res
-          .status(400)
-          .json({ error: "OTP verification required before registration" });
+      if (!name || !email || !password || !phone) {
+        res.status(400).json({
+          success: false,
+          message: "All fields are required",
+        });
         return;
       }
 
-      const hashedPassword = await bcrypt.hash(password, 8);
+      // Hash password
+      const hashedPassword = await bcrypt.hash(password, 10);
 
-      let user = await prisma.user.create({
+      const user = await prisma.user.create({
         data: {
-          name: ucode.name,
-          email: ucode.email,
+          name,
+          email,
           password: hashedPassword,
+          phone,     // Add phone field
           role: "USER",
-          googleLogin: false,
         },
       });
 
-      await prisma.ucode.delete({ where: { email } });
+      // Remove password from response
+      const { password: _, ...userWithoutPassword } = user;
 
-      const token = jwt.sign(
-        { id: user.id, role: user.role },
-        process.env.JWT_SECRET as string,
-        { expiresIn: "30d" }
-      );
-
-      res.status(200).json({ success: true, user, token });
+      res.status(201).json({
+        success: true,
+        message: "User registered successfully",
+        user: userWithoutPassword,
+      });
     } catch (error) {
-      console.error("Error in register:", error);
-      res.status(500).json({ error: "Failed to register user" });
+      res.status(500).json({
+        success: false,
+        message: "Failed to register user",
+        error: (error as Error).message,
+      });
     }
   };
 
@@ -240,22 +232,35 @@ class UserController {
     }
   };
 
-  static getAllUsers = async (_req: Request, res: Response): Promise<void> => {
+  static getAllUsers = async (req: Request, res: Response): Promise<void> => {
     try {
       const users = await prisma.user.findMany({
-        orderBy: { id: "desc" },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          image: true,
+          address: true,
+          phone: true,  // Add phone field
+          role: true,
+        },
       });
 
-      // Transform all users' image URLs
-      const transformedUsers = users.map((user) => ({
+      const transformedUsers = users.map(user => ({
         ...user,
         image: user.image ? getImageUrl(user.image) : null,
       }));
 
-      res.status(200).json(transformedUsers);
+      res.status(200).json({
+        success: true,
+        users: transformedUsers,
+      });
     } catch (error) {
-      console.error("Error in getAllUsers:", error);
-      res.status(500).json({ error: "Failed to retrieve users" });
+      res.status(500).json({
+        success: false,
+        message: "Failed to fetch users",
+        error: (error as Error).message,
+      });
     }
   };
 
@@ -437,80 +442,41 @@ class UserController {
 
   static editProfile = async (req: Request, res: Response): Promise<void> => {
     try {
-      // Extract userId from token (verifyUser middleware sets req.user)
       const userId = (req as any).user?.id;
-      if (!userId) {
-        res.status(401).json({ error: "Unauthorized" });
-        return;
-      }
-
-      // Get the current user to check for existing image
-      const currentUser = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { image: true },
-      });
-
-      let newImagePath = undefined;
-
-      // If multer found a file, handle the image update
-      if (req?.file) {
-        // Delete previous image if it exists
-        if (currentUser?.image) {
-          const oldImagePath = path.join(
-            __dirname,
-            "../../",
-            currentUser.image
-          );
-          try {
-            if (fs.existsSync(oldImagePath)) {
-              fs.unlinkSync(oldImagePath);
-            }
-          } catch (error) {
-            console.error("Error deleting old image:", error);
-          }
-        }
-
-        // Set new image path
-        newImagePath = `/uploads/${req.file.filename}`;
-      }
-
-      // Destructure AFTER setting the image
-      const { name, address } = req.body;
+      const { name, address, phone } = req.body;  // Add phone to destructuring
+      
+      const updateData: any = {};
+      if (name) updateData.name = name;
+      if (address) updateData.address = address;
+      if (phone) updateData.phone = phone;  // Add phone to updateData
+      if (req.file) updateData.image = `/uploads/${req.file.filename}`;
 
       const updatedUser = await prisma.user.update({
         where: { id: userId },
-        data: {
-          name,
-          image: newImagePath, // Only update image if new file was uploaded
-          address,
-          fcmToken: req.body.fcmToken || null,
-        },
+        data: updateData,
         select: {
           id: true,
           name: true,
           email: true,
-          role: true,
           image: true,
           address: true,
-          googleLogin: true,
+          phone: true,  // Add phone to select
+          role: true,
         },
       });
-
-      // Transform the image URL in the response
-      const transformedUser = {
-        ...updatedUser,
-        image: updatedUser.image ? getImageUrl(updatedUser.image) : null,
-      };
 
       res.status(200).json({
         success: true,
         message: "Profile updated successfully",
-        user: transformedUser,
+        user: {
+          ...updatedUser,
+          image: updatedUser.image ? getImageUrl(updatedUser.image) : null,
+        },
       });
     } catch (error) {
-      console.error("Error in editProfile:", error);
       res.status(500).json({
-        message: "Failed to update profile.",
+        success: false,
+        message: "Failed to update profile",
         error: (error as Error).message,
       });
     }
@@ -727,26 +693,22 @@ class UserController {
     }
   };
 
-  static getUserProfile = async (
-    req: Request,
-    res: Response
-  ): Promise<void> => {
+  static getUserProfile = async (req: Request, res: Response): Promise<void> => {
     try {
-      const userId = parseInt(req.params.id);
-
-      const userWithDetails = await prisma.user.findUnique({
-        where: { id: userId },
-        include: {
-          batteries: {
-            orderBy: [{ id: "desc" }],
-            include: {
-              warranties: true,
-            },
-          },
+      const user = await prisma.user.findUnique({
+        where: { id: parseInt(req.params.id) },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          image: true,
+          address: true,
+          phone: true,  // Add phone field
+          role: true,
         },
       });
 
-      if (!userWithDetails) {
+      if (!user) {
         res.status(404).json({
           success: false,
           message: "User not found",
@@ -754,29 +716,12 @@ class UserController {
         return;
       }
 
-      // Transform the response
-      const transformedUser = {
-        ...userWithDetails,
-        image: userWithDetails.image
-          ? getImageUrl(userWithDetails.image)
-          : null,
-        password: undefined,
-        batteries: userWithDetails.batteries.map((battery: any) => ({
-          ...battery,
-          image: getImageUrl(battery.image),
-          purchaseDate: formatDate(new Date(battery.purchaseDate)),
-          warranty_left: calculateWarrantyLeft(new Date(battery.purchaseDate)),
-          warranties:
-            battery.warranties?.map((warranty: any) => ({
-              ...warranty,
-              image: getImageUrl(warranty.image),
-            })) || [],
-        })),
-      };
-
       res.status(200).json({
         success: true,
-        user: transformedUser,
+        user: {
+          ...user,
+          image: user.image ? getImageUrl(user.image) : null,
+        },
       });
     } catch (error) {
       res.status(500).json({
@@ -942,6 +887,7 @@ class UserController {
           email: true,
           image: true,
           address: true,
+          phone: true,  // Add phone field
           role: true,
           batteries: {
             orderBy: { id: 'desc' },
@@ -993,6 +939,7 @@ class UserController {
           email: userData.email,
           image: userData.image ? getImageUrl(userData.image) : null,
           address: userData.address,
+          phone: userData.phone,  // Add phone to transformed data
           role: userData.role
         },
         batteries: userData.batteries.map(battery => ({

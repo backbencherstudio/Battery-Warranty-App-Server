@@ -23,6 +23,7 @@ model User {
   googleLogin  Boolean        @default(false)
   image        String?
   fcmToken     String?
+  phone        String?
   batteries    Battery[]
   warranties   Warranty[]
   notification Notification[]

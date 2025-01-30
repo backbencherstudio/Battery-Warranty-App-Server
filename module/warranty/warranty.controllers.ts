@@ -534,7 +534,7 @@ class WarrantyController {
         image: getImageUrl(warranty.image),
         user: {
           ...warranty.user,
-          image: warranty.user.image ? getImageUrl(warranty.user.image) : null,
+          image: warranty.user.image ? getImageUrl(warranty.user.image) : null, 
         },
       }));
 
