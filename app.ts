@@ -49,6 +49,9 @@ app.use("/notification", notificationRoutes);
 
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
+console.log("json", process.cwd() + "\\firebase-service-account.json")
+
+
 app.use((req: Request, res: Response, next: NextFunction) => {
   res.status(404).json({
     message: `404 route not found`,
