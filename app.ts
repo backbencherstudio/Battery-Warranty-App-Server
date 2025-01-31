@@ -1,7 +1,6 @@
 import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 import morgan from "morgan";
-// import passport from './config/passport.config';
 import session from 'express-session';
 
 import users from "./module/users/users.routes";
