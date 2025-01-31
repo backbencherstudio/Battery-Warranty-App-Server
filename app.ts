@@ -5,7 +5,7 @@ import session from 'express-session';
 
 import users from "./module/users/users.routes";
 import path from "path";
-import battery from "./module/Battery/battery.routes";
+// import battery from "./module/Battery/battery.routes";
 import warranty from "./module/warranty/warranty.routes";
 import modelNumber from "./module/model-number/modelNumber.routes";
 import notificationRoutes from "./module/notification/notification.routes";
@@ -41,7 +41,7 @@ app.use(session({
 // app.use(passport.session());
 
 app.use("/users", users);
-app.use("/battery", battery)
+// app.use("/battery", battery)
 app.use("/warranty", warranty)
 app.use("/model-number", modelNumber)
 app.use("/notification", notificationRoutes);
