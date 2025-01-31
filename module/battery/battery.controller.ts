@@ -2,7 +2,6 @@ import { Request, Response } from "express";
 import { PrismaClient } from "@prisma/client";
 import { getImageUrl } from "../../util/image_path";
 import { calculateWarrantyLeft, formatDate } from "../../util/warranty.utils";
-import { sendNotification, sendNotificationToAdmin } from '../../util/notification.utils';
 
 const prisma = new PrismaClient();
 
@@ -53,16 +52,6 @@ class BatteryController {
         },
       });
 
-      // Send notification to admin
-      await sendNotificationToAdmin(
-        'New Battery Registration',
-        `New battery registration request from ${(req as any).user?.name}`,
-        {
-          type: 'BATTERY_REGISTRATION',
-          batteryId: battery.id.toString()
-        }
-      );
-
       res.status(201).json({
         success: true,
         message: "Battery registration request submitted successfully",
@@ -107,17 +96,6 @@ class BatteryController {
             },
           },
         },
-      });
-      console.log("added battery")
-      // Send notification to user
-      await sendNotification({
-        title: 'Battery Registration Approved',
-        body: `Your battery registration for ${battery.name} has been approved`,
-        userId: battery.userId,
-        data: {
-          type: 'BATTERY_APPROVED',
-          batteryId: battery.id.toString()
-        }
       });
 
       const transformedBattery = {

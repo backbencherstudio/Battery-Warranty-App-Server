@@ -5,60 +5,93 @@ const prisma = new PrismaClient();
 
 interface NotificationData {
   title: string;
-  body: string;
+  message: string;
+  image?: string;
+  eventId?: string;
+  eventType?: string;
   userId: number;
-  data?: Record<string, string>;
+  data?: Record<string, any>;
 }
 
 export const sendNotification = async ({
   title,
-  body,
+  message,
+  image,
+  eventId,
+  eventType,
   userId,
   data = {},
 }: NotificationData) => {
+  console.log("sendNotification", title, message, image, eventId, eventType, userId);
   try {
-    // Get user's FCM token
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { fcmToken: true },
+    // Save notification to database with complete data
+    const notification = await prisma.notification.create({
+      data: {
+        message,
+        userId,
+        title,
+        image: image || null,
+        eventId: eventId || null,
+        eventType: eventType || null,
+        data: data ? (data as any) : null,
+        isRead: false,
+      },
     });
-
-    if (!user?.fcmToken) {
-      return Error("No FCM token found for user");
+    console.log(notification);
+    // If Firebase admin isn't initialized, just return after saving to database
+    if (!admin) {
+      console.log("Firebase admin not initialized, skipping FCM notification");
+      return notification;
     }
 
-    // Save notification to database
-    await prisma.notification.create({
-      data: {
-        message: body,
-        userId: userId,
-      },
+    console.log("admin", admin);
+    // Get user's FCM token
+    console.log("userId", userId);
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
     });
+    console.log("user", user);
 
-    // Send FCM notification
-    const message = {
-      notification: {
-        title,
-        body,
-      },
-      data: {
-        ...data,
-        click_action: "FLUTTER_NOTIFICATION_CLICK",
-      },
-      token: user.fcmToken,
-    };
+    if (!user?.fcmToken) {
+      console.log("No FCM token found for user, skipping FCM notification");
+      return notification;
+    }
 
-    const response = await admin.messaging().send(message);
-    return response;
+    // Try to send FCM notification with complete data
+    try {
+      const fcmMessage = {
+        notification: {
+          title,
+          body: message,
+          imageUrl: image,
+        },
+        data: {
+          ...data,
+          eventId: eventId?.toString() || "",
+          eventType: eventType || "",
+          click_action: "FLUTTER_NOTIFICATION_CLICK",
+        },
+        token: user.fcmToken,
+      };
+
+      await admin.messaging().send(fcmMessage);
+    } catch (fcmError) {
+      console.error("Failed to send FCM notification:", fcmError);
+    }
+
+    return notification;
   } catch (error) {
-    console.error("Error sending notification:", error);
+    console.error("Error in sendNotification:", error);
     throw error;
   }
 };
 
 export const sendNotificationToAdmin = async (
   title: string,
-  body: string,
+  message: string,
+  image?: string,
+  eventId?: string,
+  eventType?: string,
   data = {}
 ) => {
   try {
@@ -67,20 +100,23 @@ export const sendNotificationToAdmin = async (
       where: { role: "ADMIN" },
       select: { id: true, fcmToken: true },
     });
-
-    // Send notification to each admin
-    const promises = adminUsers.map(async (admin) => {
-      if (admin.fcmToken) {
-        await sendNotification({
+   console.log("sendNotificationToAdmin", adminUsers)
+    // Send not  ification to each admin
+    const notifications = await Promise.all(
+      adminUsers.map((admin) =>
+        sendNotification({
           title,
-          body,
+          message,
+          image,
+          eventId,
+          eventType,
           userId: admin.id,
           data,
-        });
-      }
-    });
+        })
+      )
+    );
 
-    await Promise.all(promises);
+    return notifications;
   } catch (error) {
     console.error("Error sending admin notifications:", error);
     throw error;

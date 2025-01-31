@@ -1,9 +1,80 @@
 import { Request, Response } from "express";
 import { PrismaClient } from "@prisma/client";
+import { getImageUrl } from "../../util/image_path";
+import { calculateWarrantyLeft } from "../../util/dateUtils";
 
 const prisma = new PrismaClient();
 
+interface NotificationWithWarrantyInfo {
+  id: number;
+  title: string;
+  message: string;
+  image: string | null;
+  eventId: string | null;
+  eventType: string | null;
+  data: {
+    status: string;
+    userId: string;
+    userName: string;
+    batteryId?: string;
+    warrantyId?: string;
+    userEmail: string;
+    serialNumber: string;
+    batteryName: string;
+    purchaseDate?: string;
+    congratulation?: string;
+    sorry?: string;
+  };
+  userId: number;
+  isRead: boolean;
+  createdAt: Date;
+  user: {
+    id: number;
+    name: string;
+    email: string;
+  };
+  warranty_left?: {
+    month: number;
+    day: number;
+    percentage: number;
+  };
+}
+
 class NotificationController {
+  private static async transformNotification(notification: any): Promise<NotificationWithWarrantyInfo> {
+    let warranty_left;
+    let batteryName = notification.data?.batteryName;
+    
+    // If batteryName is not in notification data, fetch it from battery
+    if (!batteryName && notification.data?.serialNumber) {
+      const battery = await prisma.battery.findFirst({
+        where: { serialNumber: notification.data.serialNumber },
+        select: { name: true }
+      });
+      batteryName = battery?.name;
+    }
+
+    // Add warranty_left calculation for battery and warranty related notifications
+    if (notification.eventType?.includes('BATTERY_') || notification.eventType?.includes('WARRANTY_')) {
+      if (notification.data?.purchaseDate) {
+        warranty_left = calculateWarrantyLeft(new Date(notification.data.purchaseDate));
+      }
+    }
+
+    // Ensure batteryName exists in data
+    const data = {
+      ...notification.data,
+      batteryName: batteryName || notification.data?.name || 'Unknown Battery'  // Try multiple sources for battery name
+    };
+
+    return {
+      ...notification,
+      image: notification.image ? getImageUrl(notification.image) : null,
+      warranty_left,
+      data,
+    };
+  }
+
   // Get user's notifications
   static getUserNotifications = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -23,9 +94,14 @@ class NotificationController {
         },
       });
 
+      // Transform notifications with proper image URLs and warranty info
+      const transformedNotifications = await Promise.all(
+        notifications.map(notification => this.transformNotification(notification))
+      );
+
       res.status(200).json({
         success: true,
-        notifications,
+        notifications: transformedNotifications,
       });
     } catch (error) {
       res.status(500).json({
@@ -38,7 +114,6 @@ class NotificationController {
 
   // Get admin notifications
   static getAdminNotifications = async (req: Request, res: Response): Promise<void> => {
-    console.log("heat")
     try {
       if ((req as any).user?.role !== "ADMIN") {
         res.status(403).json({
@@ -64,9 +139,14 @@ class NotificationController {
         },
       });
 
+      // Transform notifications with proper image URLs and warranty info
+      const transformedNotifications = await Promise.all(
+        notifications.map(notification => this.transformNotification(notification))
+      );
+
       res.status(200).json({
         success: true,
-        notifications,
+        notifications: transformedNotifications,
       });
     } catch (error) {
       res.status(500).json({
@@ -298,9 +378,14 @@ class NotificationController {
         }),
       ]);
 
+      // Transform notifications with proper image URLs and warranty info
+      const transformedNotifications = await Promise.all(
+        notifications.map(notification => this.transformNotification(notification))
+      );
+
       res.status(200).json({
         success: true,
-        notifications,
+        notifications: transformedNotifications,
         pagination: {
           currentPage: page,
           totalPages: Math.ceil(total / limit),

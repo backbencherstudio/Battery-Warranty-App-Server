@@ -2,7 +2,10 @@ import { Request, Response } from "express";
 import { PrismaClient } from "@prisma/client";
 import { getImageUrl } from "../../util/image_path";
 import { calculateWarrantyLeft } from "../../util/warranty.utils";
-import { sendNotification, sendNotificationToAdmin } from '../../util/notification.utils';
+import {
+  sendNotification,
+  sendNotificationToAdmin,
+} from "../../util/notification.utils";
 
 const prisma = new PrismaClient();
 
@@ -48,18 +51,22 @@ class WarrantyController {
       const battery = await prisma.battery.findUnique({
         where: { serialNumber },
       });
-      console.log("battery",battery)
+
       const existingWarranty = await prisma.warranty.findFirst({
         where: { batteryId: battery?.id, userId },
       });
-      console.log("existingWarranty",existingWarranty)
-      if (existingWarranty && existingWarranty.status !== "REJECTED") {
-        res.status(400).json({
-          success: false,
-          message:
-            "You have already submitted a warranty request for this battery",
-        });
-        return;
+      if (existingWarranty) {
+        if (
+          existingWarranty.status !== "REJECTED" &&
+          existingWarranty.status !== "APPROVED"
+        ) {
+          res.status(400).json({
+            success: false,
+            message:
+              "You have already submitted a warranty request for this battery",
+          });
+          return;
+        }
       }
 
       if (!battery) {
@@ -95,7 +102,7 @@ class WarrantyController {
         update: {
           serialNumber,
           image: `/uploads/${req.file.filename}`,
-          status: "PENDING", // Reset status to PENDING for override
+          status: "PENDING",
         },
         include: {
           battery: true,
@@ -111,14 +118,27 @@ class WarrantyController {
       });
 
       // Send notification to admin
-      await sendNotificationToAdmin(
-        'New Warranty Request',
-        `New warranty request received for battery ${warranty.serialNumber}`,
-        {
-          type: 'WARRANTY_REQUEST',
-          warrantyId: warranty.id.toString()
-        }
-      );
+      try {
+        await sendNotificationToAdmin(
+          "New Warranty Request",
+          `New warranty request from ${warranty.user.name} for battery ${warranty.serialNumber}`,
+          warranty.image,
+          warranty.id.toString(),
+          "WARRANTY_REQUEST",
+          {
+            status: "PENDING",
+            userId: warranty.userId.toString(),
+            userName: warranty.user.name,
+            warrantyId: warranty.id.toString(),
+            userEmail: warranty.user.email,
+            serialNumber: warranty.serialNumber,
+            batteryName: warranty.battery.name,
+            purchaseDate: warranty.battery.purchaseDate,
+          }
+        );
+      } catch (notificationError) {
+        console.error("Failed to send notification:", notificationError);
+      }
 
       const transformedWarranty = {
         ...warranty,
@@ -185,7 +205,9 @@ class WarrantyController {
         battery: {
           ...warranty.battery,
           image: getImageUrl(warranty.battery.image),
-          warranty_left: calculateWarrantyLeft(new Date(warranty.battery.purchaseDate))
+          warranty_left: calculateWarrantyLeft(
+            new Date(warranty.battery.purchaseDate)
+          ),
         },
         user: {
           ...warranty.user,
@@ -207,7 +229,10 @@ class WarrantyController {
   };
 
   // Approve warranty request (Admin only)
-  static approveWarranty = async (req: Request, res: Response): Promise<void> => {
+  static approveWarranty = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
     try {
       // Check admin permission
       if ((req as any).user?.role !== "ADMIN") {
@@ -224,36 +249,65 @@ class WarrantyController {
       const warranty = await prisma.warranty.update({
         where: { id: Number(id) },
         data: { status: "APPROVED" },
-        select: {
-          id: true,
-          serialNumber: true,
-          userId: true,
+        include: {
+          battery: {
+            select: {
+              id: true,
+              name: true,
+              serialNumber: true,
+              purchaseDate: true,
+            }
+          },
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            }
+          }
         }
       });
 
       // Send notification to user
-      await sendNotification({
-        title: 'Warranty Request Approved',
-        body: `Your warranty request for battery ${warranty.serialNumber} has been approved`,
-        userId: warranty.userId,
-        data: {
-          type: 'WARRANTY_APPROVED',
-          warrantyId: warranty.id.toString()
-        }
-      });
+      try {
+        await sendNotification({
+          title: "Congratulations! Warranty Request Approved",
+          message: `Congratulations ${warranty.user.name}! Your warranty request for battery ${warranty.serialNumber} has been approved`,
+          userId: warranty.userId,
+          eventId: warranty.id.toString(),
+          eventType: "WARRANTY_APPROVED",
+          data: {
+            status: "APPROVED",
+            congratulation: `Congratulations ${warranty.user.name}!`,
+            userId: warranty.userId.toString(),
+            userName: warranty.user.name,
+            warrantyId: warranty.id.toString(),
+            userEmail: warranty.user.email,
+            serialNumber: warranty.serialNumber,
+            batteryName: warranty.battery.name,
+            purchaseDate: warranty.battery.purchaseDate,
+          },
+        });
+      } catch (notificationError) {
+        console.error("Failed to send notification:", notificationError);
+      }
 
       res.status(200).json({
         success: true,
         message: "Warranty request approved successfully",
-        warrantyId: warranty.id
+        warrantyId: warranty.id,
       });
-
     } catch (error: unknown) {
       // Handle specific Prisma errors
-      if (error && typeof error === 'object' && 'code' in error && error.code === 'P2025') {
+      if (
+        error &&
+        typeof error === "object" &&
+        "code" in error &&
+        error.code === "P2025"
+      ) {
         res.status(404).json({
           success: false,
-          message: "Warranty not found"
+          message: "Warranty not found",
         });
         return;
       }
@@ -261,7 +315,7 @@ class WarrantyController {
       res.status(500).json({
         success: false,
         message: "Failed to approve warranty request",
-        error: (error as Error).message
+        error: (error as Error).message,
       });
     }
   };
@@ -285,24 +339,53 @@ class WarrantyController {
         where: { id: Number(id) },
         data: { status: "REJECTED" },
         include: {
-          battery: true,
+          battery: {
+            select: {
+              id: true,
+              name: true,
+              serialNumber: true,
+              purchaseDate: true,
+            }
+          },
           user: {
             select: {
               id: true,
               name: true,
               email: true,
-              image: true,
-            },
-          },
+            }
+          }
         },
       });
+
+      // Send notification to user
+      try {
+        await sendNotification({
+          title: "Warranty Request Update",
+          message: `Sorry ${warranty.user.name}, your warranty request for battery ${warranty.serialNumber} has been rejected`,
+          userId: warranty.userId,
+          eventId: warranty.id.toString(),
+          eventType: "WARRANTY_REJECTED",
+          data: {
+            status: "REJECTED",
+            sorry: `Sorry ${warranty.user.name}`,
+            userId: warranty.userId.toString(),
+            userName: warranty.user.name,
+            warrantyId: warranty.id.toString(),
+            userEmail: warranty.user.email,
+            serialNumber: warranty.serialNumber,
+            batteryName: warranty.battery.name,
+            purchaseDate: warranty.battery.purchaseDate,
+          },
+        });
+      } catch (notificationError) {
+        console.error("Failed to send notification:", notificationError);
+      }
 
       const transformedWarranty = {
         ...warranty,
         image: getImageUrl(warranty.image),
         user: {
           ...warranty.user,
-          image: warranty.user.image ? getImageUrl(warranty.user.image) : null,
         },
       };
 
@@ -391,7 +474,9 @@ class WarrantyController {
         battery: {
           ...warranty.battery,
           image: getImageUrl(warranty.battery.image),
-          warranty_left: calculateWarrantyLeft(new Date(warranty.battery.purchaseDate))
+          warranty_left: calculateWarrantyLeft(
+            new Date(warranty.battery.purchaseDate)
+          ),
         },
         user: {
           ...warranty.user,
@@ -534,7 +619,7 @@ class WarrantyController {
         image: getImageUrl(warranty.image),
         user: {
           ...warranty.user,
-          image: warranty.user.image ? getImageUrl(warranty.user.image) : null, 
+          image: warranty.user.image ? getImageUrl(warranty.user.image) : null,
         },
       }));
 

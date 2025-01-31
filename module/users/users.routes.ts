@@ -31,7 +31,7 @@ router.get("/verify", UserController.verify);
 router.patch('/edit-profile', verifyuser, upload.single("image"), UserController.editProfile)
 
 // Google Sign In for Flutter
-router.post('/auth/google', UserController.googleSignIn);
+// router.post('/auth/google', UserController.googleSignIn);
 
 // Add this route
 router.post('/update-fcm-token', verifyuser, UserController.updateFcmToken);

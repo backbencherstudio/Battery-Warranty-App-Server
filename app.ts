@@ -1,7 +1,7 @@
 import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 import morgan from "morgan";
-import passport from './config/passport.config';
+// import passport from './config/passport.config';
 import session from 'express-session';
 
 import users from "./module/users/users.routes";
@@ -22,6 +22,7 @@ app.use(
       "http://10.0.2.2:8081",
       "http://localhost:*",
       "http://localhost:58626",
+      "http://localhost:61801",
       "http://192.168.40.47:3000",
       "http://192.168.40.47:*"
     ],
@@ -37,8 +38,8 @@ app.use(session({
   saveUninitialized: false
 }));
 
-app.use(passport.initialize());
-app.use(passport.session());
+// app.use(passport.initialize());
+// app.use(passport.session());
 
 app.use("/users", users);
 app.use("/battery", battery)

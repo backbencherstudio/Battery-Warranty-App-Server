@@ -20,10 +20,13 @@ class UserController {
   private static otpExpiryTime: number = 5 * 60 * 1000; // 5 minutes in milliseconds
 
   static sendOtp = async (req: Request, res: Response): Promise<void> => {
-    const { email, name } = req.body;
+    const { email, name, phone } = req.body;
 
-    if (!email || !name) {
-      res.status(400).json({ error: "Email and name are required" });
+    if (!email || !name || !phone) {
+      res.status(400).json({
+        success: false,
+        message: "Email, name and phone are required"
+      });
       return;
     }
 
@@ -35,30 +38,48 @@ class UserController {
       const existingUser = await prisma.user.findUnique({ where: { email } });
 
       if (existingUser) {
-        res.status(400).json({ error: "User already exists. Please log in." });
+        res.status(400).json({
+          success: false,
+          message: "User already exists. Please log in."
+        });
         return;
       }
-      // Database operation to save or update OTP
+
+      // Save all user data in ucode
       await prisma.ucode.upsert({
         where: { email },
-        update: { otp, expired_at: expiry, name },
-        create: { name, email, otp, expired_at: expiry },
+        update: {
+          otp,
+          expired_at: expiry,
+          name,
+          phone,
+        },
+        create: {
+          name,
+          email,
+          otp,
+          expired_at: expiry,
+          phone,
+        },
       });
 
-      // Send email asynchronously without delaying response
+      // Send email asynchronously
       sendRegistrationOTPEmail(name, email, otp).catch((error) =>
         console.error("Failed to send email:", error)
       );
 
-      // Respond immediately after saving OTP
-      res
-        .status(200)
-        .json({ success: true, message: "OTP sent successfully", email, name });
+      res.status(200).json({
+        success: true,
+        message: "OTP sent successfully",
+        email,
+        name
+      });
     } catch (error) {
       console.error("Error in sendOtp:", error);
-      res
-        .status(500)
-        .json({ error: "Failed to send OTP. Please try again later." });
+      res.status(500).json({
+        success: false,
+        message: "Failed to send OTP. Please try again later."
+      });
     }
   };
 
@@ -94,12 +115,25 @@ class UserController {
 
   static register = async (req: Request, res: Response): Promise<void> => {
     try {
-      const { name, email, password, phone } = req.body;
+    const { email, password } = req.body;
 
-      if (!name || !email || !password || !phone) {
+    if (!email || !password) {
         res.status(400).json({
           success: false,
-          message: "All fields are required",
+          message: "Email and password are required",
+        });
+      return;
+    }
+
+      // Get user data from ucode
+      const ucodeData = await prisma.ucode.findUnique({
+        where: { email }
+      });
+
+      if (!ucodeData) {
+        res.status(400).json({
+          success: false,
+          message: "Please verify your OTP first",
         });
         return;
       }
@@ -107,14 +141,20 @@ class UserController {
       // Hash password
       const hashedPassword = await bcrypt.hash(password, 10);
 
+      // Create user with data from ucode
       const user = await prisma.user.create({
         data: {
-          name,
-          email,
+          name: ucodeData.name,
+          email: ucodeData.email,
+          phone: ucodeData.phone,
           password: hashedPassword,
-          phone,     // Add phone field
           role: "USER",
         },
+      });
+
+      // Delete the ucode entry after successful registration
+      await prisma.ucode.delete({
+        where: { email }
       });
 
       // Remove password from response
@@ -443,14 +483,14 @@ class UserController {
   static editProfile = async (req: Request, res: Response): Promise<void> => {
     try {
       const userId = (req as any).user?.id;
-      const { name, address, phone } = req.body;  // Add phone to destructuring
+      const { name, address, phone, fcmToken } = req.body;  // Add phone to destructuring
       
       const updateData: any = {};
       if (name) updateData.name = name;
       if (address) updateData.address = address;
       if (phone) updateData.phone = phone;  // Add phone to updateData
       if (req.file) updateData.image = `/uploads/${req.file.filename}`;
-
+      if (fcmToken) updateData.fcmToken = fcmToken;
       const updatedUser = await prisma.user.update({
         where: { id: userId },
         data: updateData,
@@ -461,6 +501,7 @@ class UserController {
           image: true,
           address: true,
           phone: true,  // Add phone to select
+          fcmToken: true,
           role: true,
         },
       });
@@ -482,182 +523,182 @@ class UserController {
     }
   };
 
-  static googleLogin = async (req: Request, res: Response): Promise<void> => {
-    try {
-      const { email, name, googleId } = req.body;
+  // static googleLogin = async (req: Request, res: Response): Promise<void> => {
+  //   try {
+  //     const { email, name, googleId } = req.body;
 
-      if (!email || !name || !googleId) {
-        res
-          .status(400)
-          .json({ error: "Email, name and googleId are required" });
-        return;
-      }
+  //     if (!email || !name || !googleId) {
+  //       res
+  //         .status(400)
+  //         .json({ error: "Email, name and googleId are required" });
+  //       return;
+  //     }
 
-      // Find or create user
-      let user = await prisma.user.findUnique({ where: { email } });
+  //     // Find or create user
+  //     let user = await prisma.user.findUnique({ where: { email } });
 
-      if (!user) {
-        // Create new user if doesn't exist
-        user = await prisma.user.create({
-          data: {
-            email,
-            name,
-            googleLogin: true,
-            role: "USER",
-          },
-        });
-      } else if (!user.googleLogin) {
-        // If user exists but hasn't used Google login before
-        res.status(400).json({
-          error:
-            "Email already registered with password. Please use password login.",
-        });
-        return;
-      }
+  //     if (!user) {
+  //       // Create new user if doesn't exist
+  //       user = await prisma.user.create({
+  //         data: {
+  //           email,
+  //           name,
+  //           googleLogin: true,
+  //           role: "USER",
+  //         },
+  //       });
+  //     } else if (!user.googleLogin) {
+  //       // If user exists but hasn't used Google login before
+  //       res.status(400).json({
+  //         error:
+  //           "Email already registered with password. Please use password login.",
+  //       });
+  //       return;
+  //     }
 
-      // Generate JWT token
-      const token = jwt.sign(
-        { id: user.id, role: user.role },
-        process.env.JWT_SECRET as string,
-        { expiresIn: "30d" }
-      );
+  //     // Generate JWT token
+  //     const token = jwt.sign(
+  //       { id: user.id, role: user.role },
+  //       process.env.JWT_SECRET as string,
+  //       { expiresIn: "30d" }
+  //     );
 
-      // Transform user data if needed
-      const transformedUser = {
-        ...user,
-        image: user.image ? getImageUrl(user.image) : null,
-      };
+  //     // Transform user data if needed
+  //     const transformedUser = {
+  //       ...user,
+  //       image: user.image ? getImageUrl(user.image) : null,
+  //     };
 
-      res.status(200).json({
-        success: true,
-        message: "Google login successful",
-        user: transformedUser,
-        token,
-      });
-    } catch (error) {
-      console.error("Error in googleLogin:", error);
-      res.status(500).json({
-        message: "Failed to login with Google.",
-        error: (error as Error).message,
-      });
-    }
-  };
+  //     res.status(200).json({
+  //       success: true,
+  //       message: "Google login successful",
+  //       user: transformedUser,
+  //       token,
+  //     });
+  //   } catch (error) {
+  //     console.error("Error in googleLogin:", error);
+  //     res.status(500).json({
+  //       message: "Failed to login with Google.",
+  //       error: (error as Error).message,
+  //     });
+  //   }
+  // };
 
-  static googleSignIn = async (req: Request, res: Response): Promise<void> => {
-    try {
-      const { email, name, photoUrl, googleId } = req.body;
+  // static googleSignIn = async (req: Request, res: Response): Promise<void> => {
+  //   try {
+  //     const { email, name, photoUrl, googleId } = req.body;
 
-      if (!email || !name || !googleId) {
-        res
-          .status(400)
-          .json({ error: "Email, name and googleId are required" });
-        return;
-      }
+  //     if (!email || !name || !googleId) {
+  //       res
+  //         .status(400)
+  //         .json({ error: "Email, name and googleId are required" });
+  //       return;
+  //     }
 
-      // Find if user exists
-      let user = await prisma.user.findUnique({ where: { email } });
+  //     // Find if user exists
+  //     let user = await prisma.user.findUnique({ where: { email } });
 
-      if (user) {
-        // If user exists but is not a Google user
-        if (!user.googleLogin) {
-          res.status(400).json({
-            error: "Email already registered. Please login with password.",
-          });
-          return;
-        }
+  //     if (user) {
+  //       // If user exists but is not a Google user
+  //       if (!user.googleLogin) {
+  //         res.status(400).json({
+  //           error: "Email already registered. Please login with password.",
+  //         });
+  //         return;
+  //       }
 
-        // If Google user exists, generate token and return user
-        const token = jwt.sign(
-          { id: user.id, role: user.role },
-          process.env.JWT_SECRET as string,
-          { expiresIn: "30d" }
-        );
+  //       // If Google user exists, generate token and return user
+  //       const token = jwt.sign(
+  //         { id: user.id, role: user.role },
+  //         process.env.JWT_SECRET as string,
+  //         { expiresIn: "30d" }
+  //       );
 
-        const transformedUser = {
-          ...user,
-          image: user.image ? getImageUrl(user.image) : null,
-        };
+  //       const transformedUser = {
+  //         ...user,
+  //         image: user.image ? getImageUrl(user.image) : null,
+  //       };
 
-        res.status(200).json({
-          success: true,
-          message: "Google login successful",
-          user: transformedUser,
-          token,
-        });
-        return;
-      }
+  //       res.status(200).json({
+  //         success: true,
+  //         message: "Google login successful",
+  //         user: transformedUser,
+  //         token,
+  //       });
+  //       return;
+  //     }
 
-      // If user doesn't exist, create new user with Google data
-      const newUser = await prisma.user.create({
-        data: {
-          email,
-          name,
-          googleLogin: true,
-          role: "USER",
-          image: photoUrl || null, // Save Google profile image if provided
-        },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          role: true,
-          image: true,
-          address: true,
-          googleLogin: true,
-        },
-      });
+  //     // If user doesn't exist, create new user with Google data
+  //     const newUser = await prisma.user.create({
+  //       data: {
+  //         email,
+  //         name,
+  //         googleLogin: true,
+  //         role: "USER",
+  //         image: photoUrl || null, // Save Google profile image if provided
+  //       },
+  //       select: {
+  //         id: true,
+  //         name: true,
+  //         email: true,
+  //         role: true,
+  //         image: true,
+  //         address: true,
+  //         googleLogin: true,
+  //       },
+  //     });
 
-      const token = jwt.sign(
-        { id: newUser.id, role: newUser.role },
-        process.env.JWT_SECRET as string,
-        { expiresIn: "30d" }
-      );
+  //     const token = jwt.sign(
+  //       { id: newUser.id, role: newUser.role },
+  //       process.env.JWT_SECRET as string,
+  //       { expiresIn: "30d" }
+  //     );
 
-      const transformedUser = {
-        ...newUser,
-        image: newUser.image ? getImageUrl(newUser.image) : null,
-      };
+  //     const transformedUser = {
+  //       ...newUser,
+  //       image: newUser.image ? getImageUrl(newUser.image) : null,
+  //     };
 
-      res.status(201).json({
-        success: true,
-        message: "Google signup successful",
-        user: transformedUser,
-        token,
-      });
-    } catch (error) {
-      console.error("Error in googleSignIn:", error);
-      res.status(500).json({
-        message: "Failed to authenticate with Google.",
-        error: (error as Error).message,
-      });
-    }
-  };
+  //     res.status(201).json({
+  //       success: true,
+  //       message: "Google signup successful",
+  //       user: transformedUser,
+  //       token,
+  //     });
+  //   } catch (error) {
+  //     console.error("Error in googleSignIn:", error);
+  //     res.status(500).json({
+  //       message: "Failed to authenticate with Google.",
+  //       error: (error as Error).message,
+  //     });
+  //   }
+  // };
 
-  static handleGoogleCallback = async (
-    req: Request,
-    res: Response
-  ): Promise<void> => {
-    try {
-      const user = req.user as any;
+  // static handleGoogleCallback = async (
+  //   req: Request,
+  //   res: Response
+  // ): Promise<void> => {
+  //   try {
+  //     const user = req.user as any;
 
-      if (!user) {
-        res.redirect(process.env.CLIENT_URL + "/login?error=auth_failed");
-        return;
-      }
+  //     if (!user) {
+  //       res.redirect(process.env.CLIENT_URL + "/login?error=auth_failed");
+  //       return;
+  //     }
 
-      const token = jwt.sign(
-        { id: user.id, role: user.role },
-        process.env.JWT_SECRET as string,
-        { expiresIn: "30d" }
-      );
+  //     const token = jwt.sign(
+  //       { id: user.id, role: user.role },
+  //       process.env.JWT_SECRET as string,
+  //       { expiresIn: "30d" }
+  //     );
 
-      // Redirect to frontend with token
-      res.redirect(`${process.env.CLIENT_URL}/auth/callback?token=${token}`);
-    } catch (error) {
-      console.error("Error in handleGoogleCallback:", error);
-      res.redirect(process.env.CLIENT_URL + "/login?error=server_error");
-    }
-  };
+  //     // Redirect to frontend with token
+  //     res.redirect(`${process.env.CLIENT_URL}/auth/callback?token=${token}`);
+  //   } catch (error) {
+  //     console.error("Error in handleGoogleCallback:", error);
+  //     res.redirect(process.env.CLIENT_URL + "/login?error=server_error");
+  //   }
+  // };
 
   static updateFcmToken = async (
     req: Request,
@@ -712,12 +753,12 @@ class UserController {
         res.status(404).json({
           success: false,
           message: "User not found",
-        });
-        return;
-      }
+          });
+          return;
+        }
 
-      res.status(200).json({
-        success: true,
+        res.status(200).json({
+          success: true,
         user: {
           ...user,
           image: user.image ? getImageUrl(user.image) : null,
@@ -775,10 +816,10 @@ class UserController {
         orderBy: { id: 'desc' },
         include: {
           user: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
+        select: {
+          id: true,
+          name: true,
+          email: true,
             }
           },
           battery: {
