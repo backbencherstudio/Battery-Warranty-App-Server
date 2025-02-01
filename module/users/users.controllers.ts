@@ -11,7 +11,7 @@ import {
 import path from "path";
 import fs from "fs";
 import { getImageUrl } from "../../util/image_path";
-import { formatDate, calculateWarrantyLeft } from "../../util/dateUtils";
+import { formatDate, calculateWarrantyLeft } from "../../util/warranty.utils";
 dotenv.config();
 
 const prisma = new PrismaClient();
@@ -785,7 +785,8 @@ class UserController {
               id: true,
               status: true,
               name: true,
-              
+              purchaseDate: true,
+              warrantyEndDate: true,
             },
           },
           warranties: {
@@ -826,7 +827,9 @@ class UserController {
             select: {
               name: true,
               purchaseDate: true,
-              serialNumber: true
+              serialNumber: true,
+              warrantyEndDate: true,
+            
             }
           }
         }
@@ -835,9 +838,11 @@ class UserController {
       // Transform warranties with status
       const transformedWarranties = allWarranties.map(warranty => {
         const warrantyStatus = warranty.battery ? 
-          calculateWarrantyLeft(new Date(warranty.battery.purchaseDate)).day > 0 
-            ? "ACTIVE" 
-            : "EXPIRED"
+          (warranty.battery.warrantyEndDate && warranty.battery.purchaseDate
+            ? calculateWarrantyLeft(warranty.battery.warrantyEndDate, warranty.battery.purchaseDate).day > 0 
+            : false)
+          ? "ACTIVE" 
+          : "EXPIRED"
           : "UNKNOWN";
 
         return {
@@ -939,6 +944,7 @@ class UserController {
               status: true,
               image: true,
               purchaseDate: true,
+              warrantyEndDate: true,
             }
           },
           warranties: {
@@ -987,7 +993,9 @@ class UserController {
           ...battery,
           image: getImageUrl(battery.image),
           purchaseDate: formatDate(new Date(battery.purchaseDate)),
-          warranty_left: calculateWarrantyLeft(new Date(battery.purchaseDate))
+          warranty_left: battery.warrantyEndDate && battery.purchaseDate
+            ? calculateWarrantyLeft(battery.warrantyEndDate, battery.purchaseDate)
+            : null
         })),
         warranties: userData.warranties.map(warranty => {
           let warranty_left = null;

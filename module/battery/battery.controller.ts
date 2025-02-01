@@ -11,12 +11,25 @@ class BatteryController {
       ...battery,
       purchaseDate: formatDate(new Date(battery.purchaseDate)),
       image: getImageUrl(battery.image),
-      warranty_left: calculateWarrantyLeft(new Date(battery.purchaseDate)),
+      warranty_left: battery.warrantyEndDate && battery.purchaseDate
+        ? calculateWarrantyLeft(battery.warrantyEndDate, battery.purchaseDate)
+        : null,
+    };
+  }
+
+
+  private static transformWithoutLeft(battery: any) {
+
+    return {
+      ...battery,
+      purchaseDate: formatDate(new Date(battery.purchaseDate)),
+      image: getImageUrl(battery.image),
     };
   }
 
   // Register new battery
   static registration = async (req: Request, res: Response): Promise<void> => {
+
     try {
       const { name, serialNumber, purchaseDate } = req.body;
       const userId = (req as any).user?.id;
@@ -55,7 +68,7 @@ class BatteryController {
       res.status(201).json({
         success: true,
         message: "Battery registration request submitted successfully",
-        battery: this.transformBatteryResponse(battery),
+        battery: this.transformWithoutLeft(battery),
       });
     } catch (error) {
       res.status(500).json({
@@ -67,14 +80,8 @@ class BatteryController {
   };
 
   // Accept battery registration
-  static acceptRegistration = async (
-    req: Request,
-    res: Response
-  ): Promise<void> => {
+  static acceptRegistration = async (req: Request, res: Response): Promise<void> => {
     try {
-      const { id } = req.params;
-      const adminId = (req as any).user?.id;
-
       if ((req as any).user?.role !== "ADMIN") {
         res.status(403).json({
           success: false,
@@ -83,9 +90,23 @@ class BatteryController {
         return;
       }
 
+      const { id } = req.params;
+      const { warrantyEndDate } = req.body;
+
+      if (!warrantyEndDate) {
+        res.status(400).json({
+          success: false,
+          message: "Warranty end date is required",
+        });
+        return;
+      }
+
       const battery = await prisma.battery.update({
         where: { id: Number(id) },
-        data: { status: "APPROVED" },
+        data: { 
+          status: "APPROVED",
+          warrantyEndDate: new Date(warrantyEndDate)
+        },
         include: {
           user: {
             select: {
@@ -106,7 +127,9 @@ class BatteryController {
           ...battery.user,
           image: battery.user.image ? getImageUrl(battery.user.image) : null,
         },
-        warranty_left: calculateWarrantyLeft(new Date(battery.purchaseDate)),
+        warranty_left: battery.warrantyEndDate && battery.purchaseDate
+          ? calculateWarrantyLeft(battery.warrantyEndDate, battery.purchaseDate)
+          : null,
       };
 
       res.status(200).json({
@@ -163,7 +186,9 @@ class BatteryController {
           ...battery.user,
           image: battery.user.image ? getImageUrl(battery.user.image) : null,
         },
-        warranty_left: calculateWarrantyLeft(new Date(battery.purchaseDate)),
+        warranty_left: battery.warrantyEndDate && battery.purchaseDate
+          ? calculateWarrantyLeft(battery.warrantyEndDate, battery.purchaseDate)
+          : null,
       };
 
       res.status(200).json({
@@ -207,7 +232,9 @@ class BatteryController {
           ...battery.user,
           image: battery.user.image ? getImageUrl(battery.user.image) : null,
         },
-        warranty_left: calculateWarrantyLeft(new Date(battery.purchaseDate)),
+        warranty_left: battery.warrantyEndDate && battery.purchaseDate
+          ? calculateWarrantyLeft(battery.warrantyEndDate, battery.purchaseDate)
+          : null,
       }));
 
       res.status(200).json({
@@ -251,7 +278,9 @@ class BatteryController {
           ...battery.user,
           image: battery.user.image ? getImageUrl(battery.user.image) : null,
         },
-        warranty_left: calculateWarrantyLeft(new Date(battery.purchaseDate)),
+        warranty_left: battery.warrantyEndDate && battery.purchaseDate
+          ? calculateWarrantyLeft(battery.warrantyEndDate, battery.purchaseDate)
+          : null,
       }));
 
       res.status(200).json({
@@ -296,7 +325,9 @@ class BatteryController {
           ...battery.user,
           image: battery.user.image ? getImageUrl(battery.user.image) : null,
         },
-        warranty_left: calculateWarrantyLeft(new Date(battery.purchaseDate)),
+        warranty_left: battery.warrantyEndDate && battery.purchaseDate
+          ? calculateWarrantyLeft(battery.warrantyEndDate, battery.purchaseDate)
+          : null,
       }));
 
       res.status(200).json({
@@ -340,7 +371,9 @@ class BatteryController {
           ...battery.user,
           image: battery.user.image ? getImageUrl(battery.user.image) : null,
         },
-        warranty_left: calculateWarrantyLeft(new Date(battery.purchaseDate)),
+        warranty_left: battery.warrantyEndDate && battery.purchaseDate
+          ? calculateWarrantyLeft(battery.warrantyEndDate, battery.purchaseDate)
+          : null,
       }));
 
       res.status(200).json({
@@ -387,7 +420,9 @@ class BatteryController {
           ...battery.user,
           image: battery.user.image ? getImageUrl(battery.user.image) : null,
         },
-        warranty_left: calculateWarrantyLeft(new Date(battery.purchaseDate)),
+        warranty_left: battery.warrantyEndDate && battery.purchaseDate
+          ? calculateWarrantyLeft(battery.warrantyEndDate, battery.purchaseDate)
+          : null,
       }));
 
       res.status(200).json({
@@ -434,7 +469,9 @@ class BatteryController {
           ...battery.user,
           image: battery.user.image ? getImageUrl(battery.user.image) : null,
         },
-        warranty_left: calculateWarrantyLeft(new Date(battery.purchaseDate)),
+        warranty_left: battery.warrantyEndDate && battery.purchaseDate
+          ? calculateWarrantyLeft(battery.warrantyEndDate, battery.purchaseDate)
+          : null,
       }));
 
       res.status(200).json({

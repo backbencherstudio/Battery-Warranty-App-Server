@@ -40,15 +40,16 @@ model Ucode {
 }
 
 model Battery {
-  id           Int           @id @default(autoincrement())
-  name         String
-  serialNumber String        @unique
-  image        String
-  purchaseDate DateTime
-  userId       Int
-  user         User          @relation(fields: [userId], references: [id])
-  status       BatteryStatus @default(PENDING)
-  warranties   Warranty[]
+  id              Int           @id @default(autoincrement())
+  name            String
+  serialNumber    String        @unique
+  image           String
+  purchaseDate    DateTime
+  warrantyEndDate DateTime?
+  userId          Int
+  user            User          @relation(fields: [userId], references: [id])
+  status          BatteryStatus @default(PENDING)
+  warranties      Warranty[]
 }
 
 model Warranty {
@@ -72,7 +73,7 @@ model Notification {
   image     String?
   eventId   String?
   eventType String?
-  data      Json? 
+  data      Json?
   userId    Int
   user      User     @relation(fields: [userId], references: [id])
   isRead    Boolean  @default(false)

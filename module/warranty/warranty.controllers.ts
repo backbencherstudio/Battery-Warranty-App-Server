@@ -146,9 +146,13 @@ class WarrantyController {
         battery: {
           ...warranty.battery,
           image: getImageUrl(warranty.battery.image),
-          warranty_left: calculateWarrantyLeft(
-            new Date(warranty.battery.purchaseDate)
-          ),
+          warranty_left:
+            warranty.battery.warrantyEndDate && warranty.battery.purchaseDate
+              ? calculateWarrantyLeft(
+                  warranty.battery.warrantyEndDate,
+                  warranty.battery.purchaseDate
+                )
+              : null,
         },
         user: {
           ...warranty.user,
@@ -205,9 +209,12 @@ class WarrantyController {
         battery: {
           ...warranty.battery,
           image: getImageUrl(warranty.battery.image),
-          warranty_left: calculateWarrantyLeft(
-            new Date(warranty.battery.purchaseDate)
-          ),
+          warranty_left: warranty.battery.warrantyEndDate
+            ? calculateWarrantyLeft(
+                warranty.battery.warrantyEndDate,
+                new Date()
+              )
+            : null,
         },
         user: {
           ...warranty.user,
@@ -256,16 +263,16 @@ class WarrantyController {
               name: true,
               serialNumber: true,
               purchaseDate: true,
-            }
+            },
           },
           user: {
             select: {
               id: true,
               name: true,
               email: true,
-            }
-          }
-        }
+            },
+          },
+        },
       });
 
       // Send notification to user
@@ -345,15 +352,15 @@ class WarrantyController {
               name: true,
               serialNumber: true,
               purchaseDate: true,
-            }
+            },
           },
           user: {
             select: {
               id: true,
               name: true,
               email: true,
-            }
-          }
+            },
+          },
         },
       });
 
@@ -474,9 +481,13 @@ class WarrantyController {
         battery: {
           ...warranty.battery,
           image: getImageUrl(warranty.battery.image),
-          warranty_left: calculateWarrantyLeft(
-            new Date(warranty.battery.purchaseDate)
-          ),
+          warranty_left:
+            warranty.battery.warrantyEndDate && warranty.battery.purchaseDate
+              ? calculateWarrantyLeft(
+                  warranty.battery.warrantyEndDate,
+                  warranty.battery.purchaseDate
+                )
+              : null,
         },
         user: {
           ...warranty.user,

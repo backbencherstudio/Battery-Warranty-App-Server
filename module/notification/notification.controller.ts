@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { PrismaClient } from "@prisma/client";
 import { getImageUrl } from "../../util/image_path";
-import { calculateWarrantyLeft } from "../../util/dateUtils";
+import { calculateWarrantyLeft } from "../../util/warranty.utils";
 
 const prisma = new PrismaClient();
 
@@ -45,20 +45,21 @@ class NotificationController {
     let warranty_left;
     let batteryName = notification.data?.batteryName;
     
-    // If batteryName is not in notification data, fetch it from battery
-    if (!batteryName && notification.data?.serialNumber) {
-      const battery = await prisma.battery.findFirst({
-        where: { serialNumber: notification.data.serialNumber },
-        select: { name: true }
-      });
-      batteryName = battery?.name;
-    }
-
-    // Add warranty_left calculation for battery and warranty related notifications
     if (notification.eventType?.includes('BATTERY_') || notification.eventType?.includes('WARRANTY_')) {
-      if (notification.data?.purchaseDate) {
-        warranty_left = calculateWarrantyLeft(new Date(notification.data.purchaseDate));
+      const battery = await prisma.battery.findFirst({
+        where: { serialNumber: notification.data?.serialNumber },
+        select: { 
+          name: true,
+          warrantyEndDate: true,
+          purchaseDate: true
+        }
+      });
+      
+      if (battery?.warrantyEndDate && battery?.purchaseDate) {
+        warranty_left = calculateWarrantyLeft(battery.warrantyEndDate, battery.purchaseDate);
       }
+      
+      batteryName = battery?.name;
     }
 
     // Ensure batteryName exists in data
