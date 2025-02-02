@@ -11,26 +11,26 @@ export const calculateWarrantyLeft = (warrantyEndDate: Date, purchaseDate: Date)
     return { month: 0, day: 0, percentage: 0 };
   }
 
-  console.log("warrantyEndDate", warrantyEndDate)
-  console.log("purchaseDate", purchaseDate)
+  // console.log("warrantyEndDate", warrantyEndDate)
+  // console.log("purchaseDate", purchaseDate)
   // calculate the total duration from warranty end date to purchase date in days
   const totalDuration = warrantyEndDate.getTime() - purchaseDate.getTime();
   const totalDays = Math.floor(totalDuration / (1000 * 60 * 60 * 24));
-  console.log("totalDays", totalDays)
+  // console.log("totalDays", totalDays)
 
   // calculate the remaining days between totalDays from today in days not negative number
   const remainingDays = Math.max(0, totalDays - Math.floor((now.getTime() - purchaseDate.getTime()) / (1000 * 60 * 60 * 24)));
-  console.log("remainingDays", remainingDays)
+  // console.log("remainingDays", remainingDays)
 
   // calculate the remaining percentage from remaining days and total days
   const remainingPercentage = Math.round((remainingDays / totalDays) * 100);
-  console.log("remainingPercentage", remainingPercentage)
+  // console.log("remainingPercentage", remainingPercentage)
 
   // if the total days is with month then it will show the month and day else it will show the days
   const remainingMonths = Math.floor(remainingDays / 30);
   const remainingExtraDays = remainingDays % 30;
-  console.log("remainingMonths", remainingMonths)
-  console.log("remainingExtraDays", remainingExtraDays)
+  // console.log("remainingMonths", remainingMonths)
+  // console.log("remainingExtraDays", remainingExtraDays)
 
   // // calculate the total duration of warranty in remaining in percentage
   // const totalDuration = warrantyEndDate.getTime() - purchaseDate.getTime();

@@ -24,6 +24,8 @@ app.use(
       "http://localhost:50265",
       "http://192.168.40.47:3000",
       "http://192.168.40.47:*",
+      process.env.FRONTEND_URL,
+      process.env.APP_URL,
     ],
   })
 );

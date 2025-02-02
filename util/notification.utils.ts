@@ -13,6 +13,7 @@ interface NotificationData {
   data?: Record<string, any>;
   battery?: boolean;
   warranty?: boolean;
+  
 }
 
 class NotificationService {
@@ -20,6 +21,7 @@ class NotificationService {
     throw new Error("Method not implemented.");
   }
   static async send(notification: NotificationData) {
+    console.log(notification?.data)
     try {
       // 1. Save to database
       const savedNotification = await prisma.notification.create({
@@ -31,7 +33,8 @@ class NotificationService {
           eventType: notification.eventType,
           battery: notification.battery || false,
           warranty: notification.warranty || false,
-          data: notification.data
+          data: notification.data,
+          
         }
       });
 

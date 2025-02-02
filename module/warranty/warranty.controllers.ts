@@ -291,6 +291,7 @@ class WarrantyController {
             userId: warranty.userId.toString(),
             userName: warranty.user.name,
             congratulation: `Congratulations ${warranty.user.name}!`,
+            burryy: "Félicitations",
           },
           warranty: true
         });
@@ -379,6 +380,7 @@ class WarrantyController {
             userId: warranty.userId.toString(),
             userName: warranty.user.name,
             sorry: `Sorry ${warranty.user.name}`,
+            burryy: "Désolé",
           },
           warranty: true
         });

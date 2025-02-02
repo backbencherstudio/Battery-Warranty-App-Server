@@ -25,6 +25,8 @@ interface NotificationWithWarrantyInfo {
     purchaseDate?: string;
     congratulation?: string;
     sorry?: string;
+    burryy?: string;
+    batteryImage?: string | null;
   };
   userId: number;
   isRead: boolean;
@@ -45,28 +47,33 @@ class NotificationController {
   private static async transformNotification(notification: any): Promise<NotificationWithWarrantyInfo> {
     let warranty_left;
     let batteryName = notification.data?.batteryName;
+    let batteryImage = notification.data?.batteryImage;
     
     if (notification.eventType?.includes('BATTERY_') || notification.eventType?.includes('WARRANTY_')) {
       const battery = await prisma.battery.findFirst({
         where: { serialNumber: notification.data?.serialNumber },
         select: { 
           name: true,
+          image: true,
           warrantyEndDate: true,
           purchaseDate: true
         }
       });
       
-      if (battery?.warrantyEndDate && battery?.purchaseDate) {
-        warranty_left = calculateWarrantyLeft(battery.warrantyEndDate, battery.purchaseDate);
+      if (battery) {
+        if (battery.warrantyEndDate && battery.purchaseDate) {
+          warranty_left = calculateWarrantyLeft(battery.warrantyEndDate, battery.purchaseDate);
+        }
+        batteryName = battery.name;
+        batteryImage = battery.image ? getImageUrl(battery.image) : null;
       }
-      
-      batteryName = battery?.name;
     }
 
-    // Ensure batteryName exists in data
+    // Ensure batteryName and batteryImage exist in data
     const data = {
       ...notification.data,
-      batteryName: batteryName || notification.data?.name || 'Unknown Battery'  // Try multiple sources for battery name
+      batteryName: batteryName || notification.data?.name || 'Unknown Battery',
+      batteryImage: batteryImage || notification.data?.batteryImage || null
     };
 
     return {
@@ -91,8 +98,8 @@ class NotificationController {
               id: true,
               name: true,
               email: true,
-            },
-          },
+            }
+          }
         },
       });
 
@@ -125,10 +132,15 @@ class NotificationController {
         return;
       }
 
-      const userId = (req as any).user?.id;
-
       const notifications = await prisma.notification.findMany({
-        where: { userId },
+        where: {
+          eventType: {
+            in: [
+              "BATTERY_REGISTRATION",
+              "WARRANTY_REQUEST"
+            ]
+          }
+        },
         orderBy: { createdAt: 'desc' },
         include: {
           user: {
@@ -136,14 +148,34 @@ class NotificationController {
               id: true,
               name: true,
               email: true,
-            },
-          },
+            }
+          }
         },
       });
 
-      // Transform notifications with proper image URLs and warranty info
       const transformedNotifications = await Promise.all(
-        notifications.map(notification => this.transformNotification(notification))
+        notifications.map(async (notification) => {
+          let batteryInfo = null;
+          if ((notification.data as any)?.serialNumber) {
+            batteryInfo = await prisma.battery.findFirst({
+              where: { serialNumber: (notification.data as any).serialNumber },
+              select: {
+                name: true,
+                image: true,
+                warrantyEndDate: true,
+                purchaseDate: true,
+              }
+            });
+          }
+
+          const transformed = await this.transformNotification(notification);
+
+          if (batteryInfo?.image) {
+            transformed.data.batteryImage = getImageUrl(batteryInfo.image);
+          }
+
+          return transformed;
+        })
       );
 
       res.status(200).json({
