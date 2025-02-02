@@ -11,13 +11,13 @@ export const BatteryNotifications = {
     eventType: "BATTERY_REGISTRATION"
   },
   APPROVED: {
-    title: "Battery Registration Approved",
-    message: (data) => `${data.congratulation || 'Congratulations!'} Your battery ${data.batteryName} has been approved`,
+    title: "Enregistrement de la batterie approuvé",
+    message: (data) => `Félicitations! Votre batterie ${data.batteryName} a été approuvée.`,
     eventType: "BATTERY_APPROVED"
   },
   REJECTED: {
-    title: "Battery Registration Rejected",
-    message: (data) => `${data.sorry || 'Sorry,'} your battery ${data.batteryName} registration was rejected`,
+    title: "Enregistrement de la batterie rejeté",
+    message: (data) => `Désolé, l'enregistrement de votre batterie ${data.batteryName} a été rejeté`,
     eventType: "BATTERY_REJECTED"
   }
 };
@@ -29,13 +29,14 @@ export const WarrantyNotifications = {
     eventType: "WARRANTY_REQUEST"
   },
   APPROVED: {
-    title: "Warranty Request Approved",
-    message: (data) => `${data.congratulation || 'Congratulations!'} Your warranty request for battery ${data.batteryName} has been approved`,
+    title: "Demande de garantie approuvée",
+    message: (data) => `Félicitations! Votre demande de garantie pour la batterie ${data.batteryName} a été approuvée.`,
     eventType: "WARRANTY_APPROVED"
   },
   REJECTED: {
-    title: "Warranty Request Rejected",
-    message: (data) => `${data.sorry || 'Sorry,'} your warranty request for battery ${data.batteryName} was rejected`,
+    title: "Demande de garantie rejetée",
+    message: (data) => `Désolé, votre demande de garantie pour la batterie ${data.batteryName} a été rejetée.`,
     eventType: "WARRANTY_REJECTED"
   }
+  
 }; 
