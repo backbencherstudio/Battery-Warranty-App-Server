@@ -2,10 +2,8 @@ import { Request, Response } from "express";
 import { PrismaClient } from "@prisma/client";
 import { getImageUrl } from "../../util/image_path";
 import { calculateWarrantyLeft } from "../../util/warranty.utils";
-import {
-  sendNotification,
-  sendNotificationToAdmin,
-} from "../../util/notification.utils";
+import  NotificationService from "../../util/notification.utils";
+import { WarrantyNotifications } from "../../util/notification.templates";
 
 const prisma = new PrismaClient();
 
@@ -119,23 +117,25 @@ class WarrantyController {
 
       // Send notification to admin
       try {
-        await sendNotificationToAdmin(
-          "New Warranty Request",
-          `New warranty request from ${warranty.user.name} for battery ${warranty.serialNumber}`,
-          warranty.image,
-          warranty.id.toString(),
-          "WARRANTY_REQUEST",
-          {
+        const adminUser = await prisma.user.findFirst({
+          where: { role: "ADMIN" },
+        });
+        await NotificationService.send({
+          title: WarrantyNotifications.REQUEST.title,
+          message: WarrantyNotifications.REQUEST.message({ batteryName: warranty.battery.name }),
+          userId: adminUser.id,
+          eventType: WarrantyNotifications.REQUEST.eventType,
+          data: {
+            warrantyId: warranty.id.toString(),
+            batteryId: warranty.battery.id.toString(),
+            batteryName: warranty.battery.name,
+            serialNumber: warranty.serialNumber,
             status: "PENDING",
             userId: warranty.userId.toString(),
             userName: warranty.user.name,
-            warrantyId: warranty.id.toString(),
-            userEmail: warranty.user.email,
-            serialNumber: warranty.serialNumber,
-            batteryName: warranty.battery.name,
-            purchaseDate: warranty.battery.purchaseDate,
-          }
-        );
+          },
+          warranty: true
+        });
       } catch (notificationError) {
         console.error("Failed to send notification:", notificationError);
       }
@@ -277,23 +277,22 @@ class WarrantyController {
 
       // Send notification to user
       try {
-        await sendNotification({
-          title: "Congratulations! Warranty Request Approved",
-          message: `Congratulations ${warranty.user.name}! Your warranty request for battery ${warranty.serialNumber} has been approved`,
+        await NotificationService.send({
+          title: WarrantyNotifications.APPROVED.title,
+          message: WarrantyNotifications.APPROVED.message({ batteryName: warranty.battery.name }),
           userId: warranty.userId,
-          eventId: warranty.id.toString(),
-          eventType: "WARRANTY_APPROVED",
+          eventType: WarrantyNotifications.APPROVED.eventType,
           data: {
+            warrantyId: warranty.id.toString(),
+            batteryId: warranty.battery.id.toString(),
+            batteryName: warranty.battery.name,
+            serialNumber: warranty.serialNumber,
             status: "APPROVED",
-            congratulation: `Congratulations ${warranty.user.name}!`,
             userId: warranty.userId.toString(),
             userName: warranty.user.name,
-            warrantyId: warranty.id.toString(),
-            userEmail: warranty.user.email,
-            serialNumber: warranty.serialNumber,
-            batteryName: warranty.battery.name,
-            purchaseDate: warranty.battery.purchaseDate,
+            congratulation: `Congratulations ${warranty.user.name}!`,
           },
+          warranty: true
         });
       } catch (notificationError) {
         console.error("Failed to send notification:", notificationError);
@@ -366,23 +365,22 @@ class WarrantyController {
 
       // Send notification to user
       try {
-        await sendNotification({
-          title: "Warranty Request Update",
-          message: `Sorry ${warranty.user.name}, your warranty request for battery ${warranty.serialNumber} has been rejected`,
+        await NotificationService.send({
+          title: WarrantyNotifications.REJECTED.title,
+          message: WarrantyNotifications.REJECTED.message({ batteryName: warranty.battery.name }),
           userId: warranty.userId,
-          eventId: warranty.id.toString(),
-          eventType: "WARRANTY_REJECTED",
+          eventType: WarrantyNotifications.REJECTED.eventType,
           data: {
+            warrantyId: warranty.id.toString(),
+            batteryId: warranty.battery.id.toString(),
+            batteryName: warranty.battery.name,
+            serialNumber: warranty.serialNumber,
             status: "REJECTED",
-            sorry: `Sorry ${warranty.user.name}`,
             userId: warranty.userId.toString(),
             userName: warranty.user.name,
-            warrantyId: warranty.id.toString(),
-            userEmail: warranty.user.email,
-            serialNumber: warranty.serialNumber,
-            batteryName: warranty.battery.name,
-            purchaseDate: warranty.battery.purchaseDate,
+            sorry: `Sorry ${warranty.user.name}`,
           },
+          warranty: true
         });
       } catch (notificationError) {
         console.error("Failed to send notification:", notificationError);

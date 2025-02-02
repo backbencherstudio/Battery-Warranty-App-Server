@@ -449,6 +449,8 @@ class UserController {
           email: true,
           password: true,
           role: true,
+          phone: true,
+          fcmToken: true,
           address: true,
           googleLogin: true,
           image: true,

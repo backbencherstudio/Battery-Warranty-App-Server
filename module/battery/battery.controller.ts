@@ -3,6 +3,9 @@ import { PrismaClient } from "@prisma/client";
 import { getImageUrl } from "../../util/image_path";
 import { calculateWarrantyLeft, formatDate } from "../../util/warranty.utils";
 
+import { BatteryNotifications } from "../../util/notification.templates";
+import NotificationService from "../../util/notification.utils";
+
 const prisma = new PrismaClient();
 
 class BatteryController {
@@ -63,6 +66,29 @@ class BatteryController {
           userId,
           status: "PENDING",
         },
+        include: {
+          user: true
+        }
+      });
+
+      const adminUser = await prisma.user.findFirst({
+        where: { role: "ADMIN" },
+      });
+
+      await NotificationService.send({
+        title: BatteryNotifications.REGISTRATION.title,
+        message: BatteryNotifications.REGISTRATION.message({ batteryName: battery.name }),
+        userId: adminUser.id,
+        eventType: BatteryNotifications.REGISTRATION.eventType,
+        data: {
+          batteryId: battery.id.toString(),
+          batteryName: battery.name,
+          serialNumber: battery.serialNumber,
+          status: "PENDING",
+          userId: battery.userId.toString(),
+          userName: battery.user.name,
+        },
+        battery: true
       });
 
       res.status(201).json({
@@ -119,6 +145,8 @@ class BatteryController {
         },
       });
 
+      
+
       const transformedBattery = {
         ...battery,
         image: getImageUrl(battery.image),
@@ -131,6 +159,22 @@ class BatteryController {
           ? calculateWarrantyLeft(battery.warrantyEndDate, battery.purchaseDate)
           : null,
       };
+
+      await NotificationService.send({
+        title: BatteryNotifications.APPROVED.title,
+        message: BatteryNotifications.APPROVED.message({ batteryName: battery.name }),
+        userId: battery.userId,
+        eventType: BatteryNotifications.APPROVED.eventType,
+        data: {
+          batteryId: battery.id.toString(),
+          batteryName: battery.name,
+          serialNumber: battery.serialNumber,
+          status: "APPROVED",
+          userId: battery.userId.toString(),
+          userName: battery.user.name,
+        },
+        battery: true
+      });
 
       res.status(200).json({
         success: true,
@@ -190,6 +234,22 @@ class BatteryController {
           ? calculateWarrantyLeft(battery.warrantyEndDate, battery.purchaseDate)
           : null,
       };
+
+      await NotificationService.send({
+        title: BatteryNotifications.REJECTED.title,
+        message: BatteryNotifications.REJECTED.message({ batteryName: battery.name }),
+        userId: battery.userId,
+        eventType: BatteryNotifications.REJECTED.eventType,
+        data: {
+          batteryId: battery.id.toString(),
+          batteryName: battery.name,
+          serialNumber: battery.serialNumber,
+          status: "REJECTED",
+          userId: battery.userId.toString(),
+          userName: battery.user.name,
+        },
+        battery: true
+      });
 
       res.status(200).json({
         success: true,

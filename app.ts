@@ -21,6 +21,7 @@ app.use(
       "http://localhost:*",
       "http://localhost:58626",
       "http://localhost:61801",
+      "http://localhost:50265",
       "http://192.168.40.47:3000",
       "http://192.168.40.47:*",
     ],

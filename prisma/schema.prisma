@@ -71,14 +71,17 @@ model Notification {
   title     String?
   message   String
   image     String?
-  eventId   String?
+  burryy    String?
   eventType String?
   data      Json?
   userId    Int
   user      User     @relation(fields: [userId], references: [id])
   isRead    Boolean  @default(false)
+  battery   Boolean  @default(false)  // New field for battery notifications
+  warranty  Boolean  @default(false)  // New field for warranty notifications
   createdAt DateTime @default(now())
 }
+
 
 // Enums for roles and warranty status
 enum Role {

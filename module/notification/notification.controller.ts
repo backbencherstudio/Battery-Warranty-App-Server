@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { PrismaClient } from "@prisma/client";
 import { getImageUrl } from "../../util/image_path";
 import { calculateWarrantyLeft } from "../../util/warranty.utils";
+import  NotificationService from "../../util/notification.utils";
 
 const prisma = new PrismaClient();
 
@@ -399,6 +400,34 @@ class NotificationController {
         success: false,
         message: "Failed to fetch notifications",
         error: (error as Error).message,
+      });
+    }
+  };
+
+  // Add this method to your NotificationController class
+  static testFCM = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { fcmToken } = req.body;
+      
+      if (!fcmToken) {
+        res.status(400).json({
+          success: false,
+          message: "FCM token is required"
+        });
+        return;
+      }
+
+      const result = await NotificationService.testNotification(fcmToken);
+      
+      res.status(200).json({
+        success: true,
+        message: "Test notification sent successfully"
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: "Failed to send test notification",
+        error: (error as Error).message
       });
     }
   };
