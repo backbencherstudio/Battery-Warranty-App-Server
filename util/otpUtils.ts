@@ -17,8 +17,8 @@ export const sendEmail = async (to: string, subject: string, htmlContent: string
     host: "smtp.mailtrap.io",
     service: "gmail",
     auth: {
-      user: process.env.NODE_MAILER_USER,
-      pass: process.env.NODE_MAILER_PASSWORD,
+      user: "2003monowar@gmail.com",
+      pass: "abca xnsa lmwk hhjd",
     },
   });
 
