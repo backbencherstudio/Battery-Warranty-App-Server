@@ -1,6 +1,8 @@
-const nodemailer = require("nodemailer");
-const { emailForgotPasswordOTP, emailMessage, emailUpdateOTP, resendRegistrationOTPEmail } = require("../constants/email_message");
-require("dotenv").config();
+import nodemailer from "nodemailer";
+import { emailForgotPasswordOTP, emailMessage, emailUpdateOTP, resendRegistrationOTPEmail } from "../constants/email_message";
+import dotenv from "dotenv";
+dotenv.config();
+
 
 // const generateOTP = () => {
 //   return Math.floor(1000 + Math.random() * 9000).toString();
