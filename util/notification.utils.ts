@@ -47,10 +47,10 @@ class NotificationService {
       if (user?.fcmToken) {
         const message = {
           token: user.fcmToken,
-          notification: {
-            title: notification.title,
-            body: notification.message,
-          },
+          // notification: {
+          //   title: notification.title,
+          //   body: notification.message,
+          // },
           android: {
             notification: {
               imageUrl: notification.image ? getImageUrl(notification.image) : undefined,
@@ -60,6 +60,8 @@ class NotificationService {
           },
           data: {
             ...notification.data,
+            title: notification.title,
+            body: notification.message,
             image: notification.image ? getImageUrl(notification.image) : '',
             eventType: notification.eventType || '',
             battery: notification.battery?.toString() || 'false',
