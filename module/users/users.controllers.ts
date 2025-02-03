@@ -176,20 +176,58 @@ class UserController {
   };
 
   static login = async (req: Request, res: Response): Promise<void> => {
-    const { email, password }: { email: string; password: string } = req.body;
-
     try {
-      const user = await prisma.user.findUnique({ where: { email } });
+      const { email, password, fcmToken } = req.body;
 
-      // Validate credentials
-      if (
-        !user ||
-        !user.password ||
-        !(await bcrypt.compare(password, user.password))
-      ) {
-        res.status(401).json({ error: "Invalid email or password" });
+      const user = await prisma.user.findUnique({ 
+        where: { email },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          password: true,
+          role: true,
+          phone: true,
+          fcmToken: true,
+          address: true,
+          googleLogin: true,
+          image: true,
+          isLogin: true,
+        }
+      });
+
+      if (!user) {
+        res.status(404).json({ error: "User not found" });
         return;
       }
+
+      // Verify password
+      const isValidPassword = await bcrypt.compare(password, user.password);
+      if (!isValidPassword) {
+        res.status(401).json({ error: "Invalid password" });
+        return;
+      }
+
+      // Update user's isLogin status and fcmToken if provided
+      const updatedUser = await prisma.user.update({
+        where: { id: user.id },
+        data: { 
+          isLogin: true,
+          ...(fcmToken && { fcmToken })
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          phone: true,
+          fcmToken: true,
+          address: true,
+          googleLogin: true,
+          image: true,
+          isLogin: true,
+        }
+      });
 
       const token = jwt.sign(
         { id: user.id, role: user.role },
@@ -199,22 +237,45 @@ class UserController {
 
       // Transform the image URL
       const transformedUser = {
-        ...user,
-        image: user.image ? getImageUrl(user.image) : null,
+        ...updatedUser,
+        image: updatedUser.image ? getImageUrl(updatedUser.image) : null,
       };
 
-      res.status(200).json({ success: true, token, user: transformedUser });
+      res.status(200).json({
+        success: true,
+        message: "Login successful",
+        token,
+        user: transformedUser,
+      });
     } catch (error) {
-      console.error("Error during login:", error);
-      res.status(500).json({ error: "Failed to login" });
+      res.status(500).json({ 
+        success: false,
+        message: "Login failed",
+        error: (error as Error).message 
+      });
     }
   };
 
   static adminLogin = async (req: Request, res: Response): Promise<void> => {
-    const { email, password }: { email: string; password: string } = req.body;
+    const { email, password, fcmToken } = req.body;
 
     try {
-      const user = await prisma.user.findUnique({ where: { email } });
+      const user = await prisma.user.findUnique({ 
+        where: { email },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          password: true,
+          role: true,
+          phone: true,
+          fcmToken: true,
+          address: true,
+          googleLogin: true,
+          image: true,
+          isLogin: true,
+        }
+      });
 
       // Validate credentials
       if (
@@ -231,6 +292,27 @@ class UserController {
         return;
       }
 
+      // Update admin's isLogin status and fcmToken if provided
+      const updatedUser = await prisma.user.update({
+        where: { id: user.id },
+        data: { 
+          isLogin: true,
+          ...(fcmToken && { fcmToken })
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          phone: true,
+          fcmToken: true,
+          address: true,
+          googleLogin: true,
+          image: true,
+          isLogin: true,
+        }
+      });
+
       const token = jwt.sign(
         { id: user.id, role: user.role },
         process.env.JWT_SECRET as string,
@@ -239,14 +321,23 @@ class UserController {
 
       // Transform the image URL
       const transformedUser = {
-        ...user,
-        image: user.image ? getImageUrl(user.image) : null,
+        ...updatedUser,
+        image: updatedUser.image ? getImageUrl(updatedUser.image) : null,
       };
 
-      res.status(200).json({ success: true, token, user: transformedUser });
+      res.status(200).json({ 
+        success: true, 
+        message: "Admin login successful",
+        token, 
+        user: transformedUser 
+      });
     } catch (error) {
-      console.error("Error during login:", error);
-      res.status(500).json({ error: "Failed to login" });
+      console.error("Error during admin login:", error);
+      res.status(500).json({ 
+        success: false,
+        message: "Failed to login",
+        error: (error as Error).message 
+      });
     }
   };
 
@@ -422,18 +513,13 @@ class UserController {
 
   static verify = async (req: Request, res: Response): Promise<void> => {
     const authHeader = req.headers["authorization"];
-    console.log(authHeader);
+    
     if (!authHeader) {
       res.status(401).json({ error: "No token provided" });
       return;
     }
-    console.log(authHeader);
-    const token = authHeader; //.split(" ")[1];
 
-    // if (!token) {
-    //   res.status(401).json({ error: "Malformed token" });
-    //   return;
-    // }
+    const token = authHeader;
 
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as {
@@ -441,7 +527,6 @@ class UserController {
         role: string;
       };
 
-      // 2. Check if the user still exists in the DB (optional, but recommended)
       const user = await prisma.user.findUnique({
         where: { id: decoded.id },
         select: {
@@ -455,6 +540,7 @@ class UserController {
           address: true,
           googleLogin: true,
           image: true,
+          isLogin: true,
         },
       });
 
@@ -463,7 +549,14 @@ class UserController {
         return;
       }
 
-      // Transform the image URL
+      // If user exists but isLogin is false, update it to true
+      if (!user.isLogin) {
+        await prisma.user.update({
+          where: { id: decoded.id },
+          data: { isLogin: true },
+        });
+      }
+
       const transformedUser = {
         ...user,
         image: user.image ? getImageUrl(user.image) : null,
@@ -471,7 +564,6 @@ class UserController {
 
       res.status(200).json({
         success: true,
-        // message: "Token is valid",
         token: authHeader,
         user: transformedUser,
       });

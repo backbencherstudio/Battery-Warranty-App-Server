@@ -98,6 +98,7 @@ class NotificationController {
               id: true,
               name: true,
               email: true,
+           
             }
           }
         },
@@ -135,26 +136,29 @@ class NotificationController {
       const notifications = await prisma.notification.findMany({
         where: {
           eventType: {
-            in: [
-              "BATTERY_REGISTRATION",
-              "WARRANTY_REQUEST"
-            ]
-          }
+            in: ["BATTERY_REGISTRATION", "WARRANTY_REQUEST"],
+          },
         },
-        orderBy: { createdAt: 'desc' },
-        include: {
-          user: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-            }
-          }
-        },
+        orderBy: { createdAt: "desc" }
       });
 
       const transformedNotifications = await Promise.all(
         notifications.map(async (notification) => {
+          // Get the requesting user's information
+          const requestingUser = await prisma.user.findUnique({
+            where: { 
+              id: parseInt((notification.data as any).userId) 
+            },
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              phone: true,
+              address: true,
+              image: true,
+            }
+          });
+
           let batteryInfo = null;
           if ((notification.data as any)?.serialNumber) {
             batteryInfo = await prisma.battery.findFirst({
@@ -164,7 +168,7 @@ class NotificationController {
                 image: true,
                 warrantyEndDate: true,
                 purchaseDate: true,
-              }
+              },
             });
           }
 
@@ -174,7 +178,15 @@ class NotificationController {
             transformed.data.batteryImage = getImageUrl(batteryInfo.image);
           }
 
-          return transformed;
+          // Return with requesting user's information and format user image
+          return {
+            ...transformed,
+            user: requestingUser ? {
+              ...requestingUser,
+              image: requestingUser.image ? getImageUrl(requestingUser.image) : null
+            } : null,  // Format user image URL
+            userId: parseInt((notification.data as any).userId),
+          };
         })
       );
 

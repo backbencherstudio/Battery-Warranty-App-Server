@@ -24,6 +24,7 @@ model User {
   image        String?
   fcmToken     String?
   phone        String?
+  isLogin      Boolean        @default(false)
   batteries    Battery[]
   warranties   Warranty[]
   notification Notification[]

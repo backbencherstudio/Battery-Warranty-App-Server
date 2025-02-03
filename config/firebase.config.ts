@@ -16,9 +16,6 @@ const serviceAccount = {
 }
 
 
-
-
-
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount as admin.ServiceAccount)
 });
