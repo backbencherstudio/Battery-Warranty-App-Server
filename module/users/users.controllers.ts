@@ -78,7 +78,8 @@ class UserController {
       console.error("Error in sendOtp:", error);
       res.status(500).json({
         success: false,
-        message: "Failed to send OTP. Please try again later."
+        message: `Failed to send OTP. Please try again later. ${error}`
+        
       });
     }
   };
