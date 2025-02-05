@@ -646,6 +646,121 @@ class WarrantyController {
       });
     }
   };
+
+  static getUsersWithStats = async (req: Request, res: Response): Promise<void> => {
+    try {
+      // Get warranties with battery info
+      const warranties = await prisma.warranty.findMany({
+        orderBy: { id: "desc" },
+        include: {
+          battery: true,
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              image: true,
+            },
+          },
+        },
+      });
+  
+      // Get all approved batteries without warranties
+      const approvedBatteries = await prisma.battery.findMany({
+        where: {
+          status: "APPROVED",
+          NOT: {
+            id: { in: warranties.map(w => w.batteryId) }
+          }
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              image: true,
+            },
+          },
+        },
+      });
+  
+      // Calculate statistics
+      const stats = {
+        activeUsers: await prisma.user.count({ where: { role: "USER" } }),
+        totalBatteries: await prisma.battery.count(),
+        activeBatteries: await prisma.battery.count({ where: { status: "APPROVED" } }),
+        totalWarranties: warranties.length,
+        activeWarranties: warranties.filter(w => w.status === "APPROVED").length,
+        expiredWarranties: warranties.filter(w => w.status === "REJECTED").length
+      };
+  
+      // Transform warranties into combined format
+      const warrantyItems = warranties.map(warranty => ({
+        id: warranty.batteryId,
+        name: warranty.battery.name,
+        serialNumber: warranty.battery.serialNumber,
+        image: getImageUrl(warranty.battery.image),
+        purchaseDate: warranty.battery.purchaseDate,
+        warrantyEndDate: warranty.battery.warrantyEndDate,
+        userId: warranty.battery.userId,
+        status: warranty.battery.status,
+        warranty_left: warranty.battery.warrantyEndDate
+          ? calculateWarrantyLeft(warranty.battery.warrantyEndDate, warranty.battery.purchaseDate)
+          : null,
+        user: {
+          ...warranty.user,
+          image: warranty.user.image ? getImageUrl(warranty.user.image) : null,
+        },
+        warrantyInfo: {
+          id: warranty.id,
+          serialNumber: warranty.serialNumber,
+          image: getImageUrl(warranty.image),
+          status: warranty.status,
+          requestDate: warranty.requestDate,
+        }
+      }));
+  
+      // Transform approved batteries into same format
+      const batteryItems = approvedBatteries.map(battery => ({
+        id: battery.id,
+        name: battery.name,
+        serialNumber: battery.serialNumber,
+        image: getImageUrl(battery.image),
+        purchaseDate: battery.purchaseDate,
+        warrantyEndDate: battery.warrantyEndDate,
+        userId: battery.userId,
+        status: battery.status,
+        warranty_left: battery.warrantyEndDate
+          ? calculateWarrantyLeft(battery.warrantyEndDate, battery.purchaseDate)
+          : null,
+        user: {
+          ...battery.user,
+          image: battery.user.image ? getImageUrl(battery.user.image) : null,
+        },
+        warrantyInfo: null
+      }));
+  
+      // Combine and sort by date
+      const combinedItems = [...warrantyItems, ...batteryItems].sort((a, b) => {
+        const dateA = a.warrantyInfo?.requestDate || a.purchaseDate;
+        const dateB = b.warrantyInfo?.requestDate || b.purchaseDate;
+        return new Date(dateB).getTime() - new Date(dateA).getTime();
+      });
+  
+      res.status(200).json({
+        success: true,
+        statistics: stats,
+        warranty: combinedItems
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: "Failed to fetch users statistics",
+        error: (error as Error).message,
+      });
+    }
+  };
 }
 
 export default WarrantyController;

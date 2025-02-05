@@ -1,7 +1,3 @@
 node_modules
 build
-<<<<<<< HEAD
 .env
-=======
-.env
->>>>>>> ed29f62f965bccd618e4b5cd1ad34bba1d7c6476

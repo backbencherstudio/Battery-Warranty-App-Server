@@ -17,7 +17,7 @@ router.get("/approved", verifyuser, WarrantyController.getApprovedWarranties);
 
 router.get("/rejected", verifyuser, WarrantyController.getRejectedWarranties);
 
-// User specific routes
+// User specific routes46
 router.get("/my-requests", verifyuser, WarrantyController.getMyWarranties);
 router.get("/my-rejected", verifyuser, WarrantyController.getMyRejectedWarranties);
 
