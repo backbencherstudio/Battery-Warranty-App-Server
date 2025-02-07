@@ -197,7 +197,7 @@ Access uploaded images by providing the filename.
 
 ---
 
-## Postman Collection
+## Postman Collection 
 Access the Postman collection for testing the API:
 [Postman Collection Link](https://www.postman.com/web444-4006/workspace/travel/collection/39922573-3c102085-9293-466d-b253-3d8c7e53db87?action=share&creator=39922573&active-environment=39922573-4f2a7f24-9613-420b-b3e6-c51399b90edf)
 
