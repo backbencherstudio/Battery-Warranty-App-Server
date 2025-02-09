@@ -45,4 +45,6 @@ router.get("/stats", verifyuser, UserController.getUsersWithStats);
 // Add this new route for complete profile
 router.get("/complete-profile/:id", verifyuser, UserController.getMyCompleteProfile);
 
+router.delete("/delete-account", verifyuser, UserController.deleteUser);
+
 export default router;

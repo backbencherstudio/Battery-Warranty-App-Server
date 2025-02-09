@@ -98,6 +98,7 @@ class NotificationController {
               id: true,
               name: true,
               email: true,
+              image: true
            
             }
           }
@@ -141,6 +142,9 @@ class NotificationController {
         },
         orderBy: { createdAt: "desc" }
       });
+
+      console.log("notifications", notifications);
+      
 
       const transformedNotifications = await Promise.all(
         notifications.map(async (notification) => {

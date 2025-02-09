@@ -1075,6 +1075,53 @@ class UserController {
       });
     }
   };
+
+  static deleteUser = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const currentUserId = (req as any).user?.id;
+  
+      if (!currentUserId) {
+        res.status(401).json({
+          success: false,
+          message: "Unauthorized access.",
+        });
+        return;
+      }
+  
+      // Check if the user exists
+      const existingUser = await prisma.user.findUnique({
+        where: { id: currentUserId },
+      });
+  
+      if (!existingUser) {
+        res.status(404).json({
+          success: false,
+          message: "User not found.",
+        });
+        return;
+      }
+  
+      // Delete the user
+      await prisma.user.delete({
+        where: { id: currentUserId },
+      });
+  
+      res.status(200).json({
+        success: true,
+        message: "Your account has been deleted successfully.",
+      });
+  
+    } catch (error) {
+      console.error("Error deleting user:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to delete account.",
+        error: (error as Error).message,
+      });
+    }
+  };
+
+  
 }
 
 export default UserController;
