@@ -1078,81 +1078,95 @@ class UserController {
 
   static deleteUser = async (req: Request, res: Response): Promise<void> => {
     try {
-      const { email, password } = req.body;
-  
-      if (!email || !password) {
-        res.status(400).json({
-          success: false,
-          message: "Email and password are required for account deletion.",
-        });
-        return;
-      }
-  
-      // Check if the user exists
-      const existingUser = await prisma.user.findUnique({
-        where: { email },
-        include: {
-          batteries: true,
-          warranties: true,
-          notification: true
+        const userId = (req as any).user?.id;
+        const userRole = (req as any).user?.role;
+        const { email, password } = req.body;
+
+        if (!email || !password) {
+            res.status(400).json({
+                success: false,
+                message: "Email and password are required for account deletion.",
+            });
+            return;
         }
-      });
-  
-      if (!existingUser) {
-        res.status(404).json({
-          success: false,
-          message: "Incorrect email.",
-        });
-        return;
-      }
-  
-      const isPasswordValid = await bcrypt.compare(password, existingUser.password || "");
-      if (!isPasswordValid) {
-        res.status(401).json({
-          success: false,
-          message: "Incorrect password.",
-        });
-        return;
-      }
-  
-      await prisma.notification.deleteMany({
-        where: { userId: existingUser.id }
-      });
-  
 
-      await prisma.warranty.deleteMany({
-        where: { batteryId: { in: existingUser.batteries.map(b => b.id) } }
-      });
-  
+        // Check if the user exists
+        const existingUser = await prisma.user.findUnique({
+            where: { email },
+            include: {
+                batteries: true,
+                warranties: true,
+                notification: true
+            }
+        });
 
-      await prisma.battery.deleteMany({
-        where: { userId: existingUser.id }
-      });
-  
-      // Delete warranties requested by the user
-      await prisma.warranty.deleteMany({
-        where: { userId: existingUser.id }
-      });
-  
-      // Delete the user
-      await prisma.user.delete({
-        where: { id: existingUser.id }
-      });
-  
-      res.status(200).json({
-        success: true,
-        message: "Your account and all related data have been deleted successfully.",
-      });
-  
+        if (!existingUser) {
+            res.status(404).json({
+                success: false,
+                message: "Incorrect email.",
+            });
+            return;
+        }
+
+        // Check if the authenticated user is deleting their own account
+        if (existingUser.id !== userId && userRole !== "ADMIN") {
+            res.status(403).json({
+                success: false,
+                message: "You are not authorized to delete this account.",
+            });
+            return;
+        }
+
+        // Verify the password
+        const isPasswordValid = await bcrypt.compare(password, existingUser.password || "");
+        if (!isPasswordValid) {
+            res.status(401).json({
+                success: false,
+                message: "Incorrect password.",
+            });
+            return;
+        }
+
+        // Delete notifications related to the user
+        await prisma.notification.deleteMany({
+            where: { userId: existingUser.id }
+        });
+
+        // Delete warranties related to the user's batteries
+        await prisma.warranty.deleteMany({
+            where: { batteryId: { in: existingUser.batteries.map(b => b.id) } }
+        });
+
+        // Delete the user's batteries
+        await prisma.battery.deleteMany({
+            where: { userId: existingUser.id }
+        });
+
+        // Delete warranties requested by the user
+        await prisma.warranty.deleteMany({
+            where: { userId: existingUser.id }
+        });
+
+        // Delete the user
+        await prisma.user.delete({
+            where: { id: existingUser.id }
+        });
+
+        res.status(200).json({
+            success: true,
+            message: "Your account and all related data have been deleted successfully.",
+        });
+
     } catch (error) {
-      console.error("Error deleting user:", error);
-      res.status(500).json({
-        success: false,
-        message: "Failed to delete account.",
-        error: (error as Error).message,
-      });
+        console.error("Error deleting user:", error);
+        res.status(500).json({
+            success: false,
+            message: "Failed to delete account.",
+            error: (error as Error).message,
+        });
     }
-  };
+};
+
   
   
   
