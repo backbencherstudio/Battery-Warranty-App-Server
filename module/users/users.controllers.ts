@@ -1078,37 +1078,70 @@ class UserController {
 
   static deleteUser = async (req: Request, res: Response): Promise<void> => {
     try {
-      const currentUserId = (req as any).user?.id;
+      const { email, password } = req.body;
   
-      if (!currentUserId) {
-        res.status(401).json({
+      if (!email || !password) {
+        res.status(400).json({
           success: false,
-          message: "Unauthorized access.",
+          message: "Email and password are required for account deletion.",
         });
         return;
       }
   
       // Check if the user exists
       const existingUser = await prisma.user.findUnique({
-        where: { id: currentUserId },
+        where: { email },
+        include: {
+          batteries: true,
+          warranties: true,
+          notification: true
+        }
       });
   
       if (!existingUser) {
         res.status(404).json({
           success: false,
-          message: "User not found.",
+          message: "Incorrect email.",
         });
         return;
       }
   
+      const isPasswordValid = await bcrypt.compare(password, existingUser.password || "");
+      if (!isPasswordValid) {
+        res.status(401).json({
+          success: false,
+          message: "Incorrect password.",
+        });
+        return;
+      }
+  
+      await prisma.notification.deleteMany({
+        where: { userId: existingUser.id }
+      });
+  
+
+      await prisma.warranty.deleteMany({
+        where: { batteryId: { in: existingUser.batteries.map(b => b.id) } }
+      });
+  
+
+      await prisma.battery.deleteMany({
+        where: { userId: existingUser.id }
+      });
+  
+      // Delete warranties requested by the user
+      await prisma.warranty.deleteMany({
+        where: { userId: existingUser.id }
+      });
+  
       // Delete the user
       await prisma.user.delete({
-        where: { id: currentUserId },
+        where: { id: existingUser.id }
       });
   
       res.status(200).json({
         success: true,
-        message: "Your account has been deleted successfully.",
+        message: "Your account and all related data have been deleted successfully.",
       });
   
     } catch (error) {
@@ -1120,7 +1153,8 @@ class UserController {
       });
     }
   };
-
+  
+  
   
 }
 

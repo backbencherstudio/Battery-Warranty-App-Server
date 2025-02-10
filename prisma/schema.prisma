@@ -28,6 +28,8 @@ model User {
   batteries    Battery[]
   warranties   Warranty[]
   notification Notification[]
+  createdAt  DateTime @default(now())
+
 }
 
 model Ucode {
