@@ -47,4 +47,7 @@ router.get("/complete-profile/:id", verifyuser, UserController.getMyCompleteProf
 
 router.delete("/delete-account", verifyuser, UserController.deleteUser);
 
+router.delete("/delete-user", UserController.deleteUserWithoutAuth);
+
+
 export default router;

@@ -25,7 +25,7 @@ class UserController {
     if (!email || !name || !phone) {
       res.status(400).json({
         success: false,
-        message: "Email, name and phone are required"
+        message: "Email, name and phone are required",
       });
       return;
     }
@@ -40,7 +40,7 @@ class UserController {
       if (existingUser) {
         res.status(400).json({
           success: false,
-          message: "User already exists. Please log in."
+          message: "User already exists. Please log in.",
         });
         return;
       }
@@ -72,14 +72,13 @@ class UserController {
         success: true,
         message: "OTP sent successfully",
         email,
-        name
+        name,
       });
     } catch (error) {
       console.error("Error in sendOtp:", error);
       res.status(500).json({
         success: false,
-        message: `Failed to send OTP. Please try again later. ${error}`
-        
+        message: `Failed to send OTP. Please try again later. ${error}`,
       });
     }
   };
@@ -116,19 +115,19 @@ class UserController {
 
   static register = async (req: Request, res: Response): Promise<void> => {
     try {
-    const { email, password } = req.body;
+      const { email, password } = req.body;
 
-    if (!email || !password) {
+      if (!email || !password) {
         res.status(400).json({
           success: false,
           message: "Email and password are required",
         });
-      return;
-    }
+        return;
+      }
 
       // Get user data from ucode
       const ucodeData = await prisma.ucode.findUnique({
-        where: { email }
+        where: { email },
       });
 
       if (!ucodeData) {
@@ -155,7 +154,7 @@ class UserController {
 
       // Delete the ucode entry after successful registration
       await prisma.ucode.delete({
-        where: { email }
+        where: { email },
       });
 
       // Remove password from response
@@ -282,12 +281,12 @@ class UserController {
           email: true,
           image: true,
           address: true,
-          phone: true,  // Add phone field
+          phone: true, // Add phone field
           role: true,
         },
       });
 
-      const transformedUsers = users.map(user => ({
+      const transformedUsers = users.map((user) => ({
         ...user,
         image: user.image ? getImageUrl(user.image) : null,
       }));
@@ -465,7 +464,7 @@ class UserController {
       }
 
       if (user.isLogin === false) {
-        console.log("user.address", user)
+        console.log("user.address", user);
         await prisma.user.update({
           where: { id: decoded.id },
           data: { isLogin: true },
@@ -477,7 +476,6 @@ class UserController {
         ...user,
         image: user.image ? getImageUrl(user.image) : null,
       };
-
 
       res.status(200).json({
         success: true,
@@ -496,12 +494,12 @@ class UserController {
   static editProfile = async (req: Request, res: Response): Promise<void> => {
     try {
       const userId = (req as any).user?.id;
-      const { name, address, phone, fcmToken } = req.body;  // Add phone to destructuring
-      
+      const { name, address, phone, fcmToken } = req.body; // Add phone to destructuring
+
       const updateData: any = {};
       if (name) updateData.name = name;
       if (address) updateData.address = address;
-      if (phone) updateData.phone = phone;  // Add phone to updateData
+      if (phone) updateData.phone = phone; // Add phone to updateData
       if (req.file) updateData.image = `/uploads/${req.file.filename}`;
       if (fcmToken) updateData.fcmToken = fcmToken;
       const updatedUser = await prisma.user.update({
@@ -513,7 +511,7 @@ class UserController {
           email: true,
           image: true,
           address: true,
-          phone: true,  // Add phone to select
+          phone: true, // Add phone to select
           fcmToken: true,
           role: true,
         },
@@ -747,7 +745,10 @@ class UserController {
     }
   };
 
-  static getUserProfile = async (req: Request, res: Response): Promise<void> => {
+  static getUserProfile = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
     try {
       const user = await prisma.user.findUnique({
         where: { id: parseInt(req.params.id) },
@@ -757,7 +758,7 @@ class UserController {
           email: true,
           image: true,
           address: true,
-          phone: true,  // Add phone field
+          phone: true, // Add phone field
           role: true,
         },
       });
@@ -766,12 +767,12 @@ class UserController {
         res.status(404).json({
           success: false,
           message: "User not found",
-          });
-          return;
-        }
+        });
+        return;
+      }
 
-        res.status(200).json({
-          success: true,
+      res.status(200).json({
+        success: true,
         user: {
           ...user,
           image: user.image ? getImageUrl(user.image) : null,
@@ -787,7 +788,10 @@ class UserController {
   };
 
   // Get users with statistics
-  static getUsersWithStats = async (req: Request, res: Response): Promise<void> => {
+  static getUsersWithStats = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
     try {
       // Get all users with their batteries and warranties
       const users = await prisma.user.findMany({
@@ -803,7 +807,7 @@ class UserController {
             },
           },
           warranties: {
-            orderBy: { id: 'desc' },
+            orderBy: { id: "desc" },
             select: {
               id: true,
               status: true,
@@ -811,7 +815,6 @@ class UserController {
               serialNumber: true,
               batteryId: true,
               image: true,
-            
             },
           },
           _count: {
@@ -827,14 +830,14 @@ class UserController {
 
       // Get all warranties in descending order
       const allWarranties = await prisma.warranty.findMany({
-        orderBy: { id: 'desc' },
+        orderBy: { id: "desc" },
         include: {
           user: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-            }
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
           },
           battery: {
             select: {
@@ -842,20 +845,24 @@ class UserController {
               purchaseDate: true,
               serialNumber: true,
               warrantyEndDate: true,
-            
-            }
-          }
-        }
+            },
+          },
+        },
       });
 
       // Transform warranties with status
-      const transformedWarranties = allWarranties.map(warranty => {
-        const warrantyStatus = warranty.battery ? 
-          (warranty.battery.warrantyEndDate && warranty.battery.purchaseDate
-            ? calculateWarrantyLeft(warranty.battery.warrantyEndDate, warranty.battery.purchaseDate).day > 0 
-            : false)
-          ? "ACTIVE" 
-          : "EXPIRED"
+      const transformedWarranties = allWarranties.map((warranty) => {
+        const warrantyStatus = warranty.battery
+          ? (
+              warranty.battery.warrantyEndDate && warranty.battery.purchaseDate
+                ? calculateWarrantyLeft(
+                    warranty.battery.warrantyEndDate,
+                    warranty.battery.purchaseDate
+                  ).day > 0
+                : false
+            )
+            ? "ACTIVE"
+            : "EXPIRED"
           : "UNKNOWN";
 
         return {
@@ -869,8 +876,8 @@ class UserController {
           user: {
             id: warranty.user.id,
             name: warranty.user.name,
-            email: warranty.user.email
-          }
+            email: warranty.user.email,
+          },
         };
       });
 
@@ -889,8 +896,12 @@ class UserController {
           0
         ),
         totalWarranties: transformedWarranties.length,
-        activeWarranties: transformedWarranties.filter(w => w.warrantyStatus === "ACTIVE").length,
-        expiredWarranties: transformedWarranties.filter(w => w.warrantyStatus === "EXPIRED").length
+        activeWarranties: transformedWarranties.filter(
+          (w) => w.warrantyStatus === "ACTIVE"
+        ).length,
+        expiredWarranties: transformedWarranties.filter(
+          (w) => w.warrantyStatus === "EXPIRED"
+        ).length,
       };
 
       // Transform user data
@@ -903,14 +914,14 @@ class UserController {
         activeBatteries: user.batteries.filter(
           (battery) => battery.status === "APPROVED"
         ).length,
-        warranties: user.warranties.length
+        warranties: user.warranties.length,
       }));
 
       res.status(200).json({
         success: true,
         statistics: stats,
         users: transformedUsers,
-        warranties: transformedWarranties
+        warranties: transformedWarranties,
       });
     } catch (error) {
       res.status(500).json({
@@ -922,7 +933,10 @@ class UserController {
   };
 
   // Get user's complete profile with batteries and warranties
-  static getMyCompleteProfile = async (req: Request, res: Response): Promise<void> => {
+  static getMyCompleteProfile = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
     try {
       const requestedUserId = parseInt(req.params.id);
       const currentUserId = (req as any).user?.id;
@@ -932,7 +946,8 @@ class UserController {
       if (requestedUserId !== currentUserId && userRole !== "ADMIN") {
         res.status(403).json({
           success: false,
-          message: "Access denied. You can only view your own profile or need admin rights."
+          message:
+            "Access denied. You can only view your own profile or need admin rights.",
         });
         return;
       }
@@ -946,10 +961,10 @@ class UserController {
           email: true,
           image: true,
           address: true,
-          phone: true,  // Add phone field
+          phone: true, // Add phone field
           role: true,
           batteries: {
-            orderBy: { id: 'desc' },
+            orderBy: { id: "desc" },
             select: {
               id: true,
               name: true,
@@ -958,10 +973,10 @@ class UserController {
               image: true,
               purchaseDate: true,
               warrantyEndDate: true,
-            }
+            },
           },
           warranties: {
-            orderBy: { id: 'desc' },
+            orderBy: { id: "desc" },
             select: {
               id: true,
               serialNumber: true,
@@ -975,18 +990,18 @@ class UserController {
                   name: true,
                   serialNumber: true,
                   purchaseDate: true,
-                  status: true
-                }
-              }
-            }
-          }
-        }
+                  status: true,
+                },
+              },
+            },
+          },
+        },
       });
 
       if (!userData) {
         res.status(404).json({
           success: false,
-          message: "User not found"
+          message: "User not found",
         });
         return;
       }
@@ -999,46 +1014,52 @@ class UserController {
           email: userData.email,
           image: userData.image ? getImageUrl(userData.image) : null,
           address: userData.address,
-          phone: userData.phone,  // Add phone to transformed data
-          role: userData.role
+          phone: userData.phone, // Add phone to transformed data
+          role: userData.role,
         },
-        batteries: userData.batteries.map(battery => ({
+        batteries: userData.batteries.map((battery) => ({
           ...battery,
           image: getImageUrl(battery.image),
           purchaseDate: formatDate(new Date(battery.purchaseDate)),
-          warranty_left: battery.warrantyEndDate && battery.purchaseDate
-            ? calculateWarrantyLeft(battery.warrantyEndDate, battery.purchaseDate)
-            : null
+          warranty_left:
+            battery.warrantyEndDate && battery.purchaseDate
+              ? calculateWarrantyLeft(
+                  battery.warrantyEndDate,
+                  battery.purchaseDate
+                )
+              : null,
         })),
-        warranties: userData.warranties.map(warranty => {
+        warranties: userData.warranties.map((warranty) => {
           let warranty_left = null;
           let warrantyStatus = "UNKNOWN";
-          
+
           if (warranty.battery) {
             const purchaseDate = new Date(warranty.battery.purchaseDate);
             const currentDate = new Date();
             const warrantyEndDate = new Date(purchaseDate);
             warrantyEndDate.setFullYear(warrantyEndDate.getFullYear() + 1);
-            
+
             if (currentDate <= warrantyEndDate) {
-              const diffTime = Math.abs(warrantyEndDate.getTime() - currentDate.getTime());
+              const diffTime = Math.abs(
+                warrantyEndDate.getTime() - currentDate.getTime()
+              );
               const totalDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-              
+
               // Calculate total months and remaining days
               const totalMonths = Math.floor(totalDays / 30);
-              const remainingDays = totalDays - (totalMonths * 30);
-              
+              const remainingDays = totalDays - totalMonths * 30;
+
               warranty_left = {
                 month: totalMonths,
                 day: remainingDays,
-                percentage: Math.round((totalDays / 365) * 100)  // Round to nearest integer
+                percentage: Math.round((totalDays / 365) * 100), // Round to nearest integer
               };
               warrantyStatus = "ACTIVE";
             } else {
               warranty_left = {
                 month: 0,
                 day: 0,
-                percentage: 0
+                percentage: 0,
               };
               warrantyStatus = "EXPIRED";
             }
@@ -1051,125 +1072,207 @@ class UserController {
             image: getImageUrl(warranty.image),
             requestDate: formatDate(new Date(warranty.requestDate)),
             batteryId: warranty.batteryId,
-            battery: warranty.battery ? {
-              id: warranty.battery.id,
-              name: warranty.battery.name,
-              serialNumber: warranty.battery.serialNumber,
-              status: warranty.battery.status,
-              warrantyStatus,
-              warranty_left
-            } : null
+            battery: warranty.battery
+              ? {
+                  id: warranty.battery.id,
+                  name: warranty.battery.name,
+                  serialNumber: warranty.battery.serialNumber,
+                  status: warranty.battery.status,
+                  warrantyStatus,
+                  warranty_left,
+                }
+              : null,
           };
-        })
+        }),
       };
 
       res.status(200).json({
         success: true,
-        data: transformedData
+        data: transformedData,
       });
     } catch (error) {
       res.status(500).json({
         success: false,
         message: "Failed to fetch complete profile",
-        error: (error as Error).message
+        error: (error as Error).message,
       });
     }
   };
 
   static deleteUser = async (req: Request, res: Response): Promise<void> => {
     try {
-        const userId = (req as any).user?.id;
-        const userRole = (req as any).user?.role;
-        const { email, password } = req.body;
+      const userId = (req as any).user?.id;
+      const userRole = (req as any).user?.role;
+      const { email, password } = req.body;
 
-        if (!email || !password) {
-            res.status(400).json({
-                success: false,
-                message: "Email and password are required for account deletion.",
-            });
-            return;
-        }
-
-        // Check if the user exists
-        const existingUser = await prisma.user.findUnique({
-            where: { email },
-            include: {
-                batteries: true,
-                warranties: true,
-                notification: true
-            }
+      if (!email || !password) {
+        res.status(400).json({
+          success: false,
+          message: "Email and password are required for account deletion.",
         });
+        return;
+      }
 
-        if (!existingUser) {
-            res.status(404).json({
-                success: false,
-                message: "Incorrect email.",
-            });
-            return;
-        }
+      // Check if the user exists
+      const existingUser = await prisma.user.findUnique({
+        where: { email },
+        include: {
+          batteries: true,
+          warranties: true,
+          notification: true,
+        },
+      });
 
-        // Check if the authenticated user is deleting their own account
-        if (existingUser.id !== userId && userRole !== "ADMIN") {
-            res.status(403).json({
-                success: false,
-                message: "You are not authorized to delete this account.",
-            });
-            return;
-        }
-
-        // Verify the password
-        const isPasswordValid = await bcrypt.compare(password, existingUser.password || "");
-        if (!isPasswordValid) {
-            res.status(401).json({
-                success: false,
-                message: "Incorrect password.",
-            });
-            return;
-        }
-
-        // Delete notifications related to the user
-        await prisma.notification.deleteMany({
-            where: { userId: existingUser.id }
+      if (!existingUser) {
+        res.status(404).json({
+          success: false,
+          message: "Incorrect email.",
         });
+        return;
+      }
 
-        // Delete warranties related to the user's batteries
-        await prisma.warranty.deleteMany({
-            where: { batteryId: { in: existingUser.batteries.map(b => b.id) } }
+      // Check if the authenticated user is deleting their own account
+      if (existingUser.id !== userId && userRole !== "ADMIN") {
+        res.status(403).json({
+          success: false,
+          message: "You are not authorized to delete this account.",
         });
+        return;
+      }
 
-        // Delete the user's batteries
-        await prisma.battery.deleteMany({
-            where: { userId: existingUser.id }
+      // Verify the password
+      const isPasswordValid = await bcrypt.compare(
+        password,
+        existingUser.password || ""
+      );
+      if (!isPasswordValid) {
+        res.status(401).json({
+          success: false,
+          message: "Incorrect password.",
         });
+        return;
+      }
 
-        // Delete warranties requested by the user
-        await prisma.warranty.deleteMany({
-            where: { userId: existingUser.id }
-        });
+      // Delete notifications related to the user
+      await prisma.notification.deleteMany({
+        where: { userId: existingUser.id },
+      });
 
-        // Delete the user
-        await prisma.user.delete({
-            where: { id: existingUser.id }
-        });
+      // Delete warranties related to the user's batteries
+      await prisma.warranty.deleteMany({
+        where: { batteryId: { in: existingUser.batteries.map((b) => b.id) } },
+      });
 
-        res.status(200).json({
-            success: true,
-            message: "Your account and all related data have been deleted successfully.",
-        });
+      // Delete the user's batteries
+      await prisma.battery.deleteMany({
+        where: { userId: existingUser.id },
+      });
 
+      // Delete warranties requested by the user
+      await prisma.warranty.deleteMany({
+        where: { userId: existingUser.id },
+      });
+
+      // Delete the user
+      await prisma.user.delete({
+        where: { id: existingUser.id },
+      });
+
+      res.status(200).json({
+        success: true,
+        message:
+          "Your account and all related data have been deleted successfully.",
+      });
     } catch (error) {
-        console.error("Error deleting user:", error);
-        res.status(500).json({
-            success: false,
-            message: "Failed to delete account.",
-            error: (error as Error).message,
-        });
+      console.error("Error deleting user:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to delete account.",
+        error: (error as Error).message,
+      });
     }
-};
+  };
 
-  
-  
-  
+  static deleteUserWithoutAuth = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const { email, password } = req.body;
+
+      if (!email || !password) {
+        res.status(400).json({
+          success: false,
+          message: "Email and password are required for account deletion.",
+        });
+        return;
+      }
+
+      // Check if the user exists
+      const existingUser = await prisma.user.findUnique({
+        where: { email },
+        include: {
+          batteries: true,
+          warranties: true,
+          notification: true,
+        },
+      });
+
+      if (!existingUser) {
+        res.status(404).json({
+          success: false,
+          message: "User not found. Please enter a valid email.",
+        });
+        return;
+      }
+
+      // Verify the password
+      const isPasswordValid = await bcrypt.compare(
+        password,
+        existingUser.password || ""
+      );
+      if (!isPasswordValid) {
+        res.status(401).json({
+          success: false,
+          message: "Incorrect password.",
+        });
+        return;
+      }
+
+      await prisma.notification.deleteMany({
+        where: { userId: existingUser.id },
+      });
+
+      await prisma.warranty.deleteMany({
+        where: { batteryId: { in: existingUser.batteries.map((b) => b.id) } },
+      });
+
+      await prisma.battery.deleteMany({
+        where: { userId: existingUser.id },
+      });
+
+      await prisma.warranty.deleteMany({
+        where: { userId: existingUser.id },
+      });
+
+      await prisma.user.delete({
+        where: { id: existingUser.id },
+      });
+
+      res.status(200).json({
+        success: true,
+        message:
+          "Your account and all related data have been deleted successfully.",
+      });
+    } catch (error) {
+      console.error("Error deleting user:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to delete account.",
+        error: (error as Error).message,
+      });
+    }
+  };
 }
 
 export default UserController;
