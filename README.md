@@ -207,4 +207,6 @@ Access the Postman collection for testing the API:
 - Ensure the `Authorization` token is included in the headers for authenticated routes.
 - For profile editing, use `FormData` to send image files along with other data.
 - Replace `{filename}` in the static files route with the actual name of the file you wish to access.
+
+- 
   
